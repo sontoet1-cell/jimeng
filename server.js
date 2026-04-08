@@ -62,6 +62,35 @@ function normalizeProcessError(error, fallbackMessage) {
   return createHttpError(502, fallbackMessage || error?.message || "Loi khi chay lenh he thong.");
 }
 
+function summarizeYtDlpError(stderrText, actionLabel = "xu ly") {
+  const raw = String(stderrText || "").trim();
+  const low = raw.toLowerCase();
+  if (!raw) return `yt-dlp that bai khi ${actionLabel}.`;
+  if (low.includes("the json object must be str") || low.includes("nonetype")) {
+    return "Nguon downloader tra du lieu khong hop le. Thu lai sau it phut hoac doi link khac.";
+  }
+  if (low.includes("private") || low.includes("login required") || low.includes("sign in")) {
+    return "Video yeu cau dang nhap/khong cong khai, khong the tai truc tiep.";
+  }
+  if (low.includes("unsupported url")) {
+    return "Link khong duoc downloader ho tro.";
+  }
+  if (low.includes("unable to extract")) {
+    return "Khong trich xuat duoc nguon video tu link nay.";
+  }
+  return `yt-dlp that bai khi ${actionLabel}.`;
+}
+
+function sanitizeClientErrorMessage(message) {
+  const text = String(message || "").trim();
+  const low = text.toLowerCase();
+  if (!text) return "Khong the xu ly link nay luc nay.";
+  if (low.includes("the json object must be str") || low.includes("nonetype")) {
+    return "Nguon downloader tra du lieu khong hop le. Thu lai sau it phut hoac doi link khac.";
+  }
+  return text;
+}
+
 function findExecutableInPath(binaryName) {
   const cmd = process.platform === "win32" ? "where" : "which";
   try {
@@ -925,7 +954,11 @@ function runCommandCapture(executable, args) {
     proc.on("close", (code) => {
       fs.promises.rm(isolatedTempDir, { recursive: true, force: true }).catch(() => {});
       if (code === 0) resolve({ stdout, stderr });
-      else reject(createHttpError(502, stderr || `yt-dlp exited with ${code}`));
+      else {
+        const userMessage = summarizeYtDlpError(stderr, "phan tich link");
+        if (stderr) console.warn(`[yt-dlp] dump-json failed (code ${code}): ${stderr.slice(-500)}`);
+        reject(createHttpError(502, userMessage));
+      }
     });
   });
 }
@@ -1263,7 +1296,11 @@ async function downloadViaYtDlpToFile(pageUrl, outputPath) {
     proc.on("close", (code) => {
       fs.promises.rm(isolatedTempDir, { recursive: true, force: true }).catch(() => {});
       if (code === 0) resolve();
-      else reject(createHttpError(502, `yt-dlp tai TikTok that bai (code ${code}). ${stderr.slice(-220)}`));
+      else {
+        const userMessage = summarizeYtDlpError(stderr, "tai video");
+        if (stderr) console.warn(`[yt-dlp] download failed (code ${code}): ${stderr.slice(-500)}`);
+        reject(createHttpError(502, userMessage));
+      }
     });
   });
 }
@@ -1715,7 +1752,7 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       const message = error instanceof SyntaxError
         ? "Request JSON khong hop le."
-        : error.message || "Khong the xu ly link nay luc nay.";
+        : sanitizeClientErrorMessage(error.message || "Khong the xu ly link nay luc nay.");
       const statusCode = Number(error?.statusCode) || 500;
       sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, { error: message });
     }

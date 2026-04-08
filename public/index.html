@@ -1,649 +1,189 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="referrer" content="no-referrer" />
-  
-  <title>Jimeng Downloader Không Logo</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>Jimeng Video Resolver</title>
   <style>
     :root {
-      --bg-color: #09090b;
-      --text-main: #ffffff;
-      --text-muted: #a1a1aa;
-      --card-bg: #18181b;
-      --card-border: #27272a;
-      --primary-color: #6366f1; 
-      --primary-gradient: linear-gradient(90deg, #818cf8, #6366f1);
-      --btn-blue: #3b82f6;
-      --btn-blue-hover: #2563eb;
+      --bg: #0f172a;
+      --card: #111827;
+      --line: #273449;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #22c55e;
+      --accent-2: #2563eb;
+      --danger: #ef4444;
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
+    * { box-sizing: border-box; }
     body {
-      background-color: var(--bg-color);
-      color: var(--text-main);
+      margin: 0;
       min-height: 100vh;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 20% -10%, #1d4ed8 0%, transparent 60%),
+        radial-gradient(1000px 500px at 110% 20%, #14532d 0%, transparent 55%),
+        var(--bg);
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      background-image: radial-gradient(circle at 50% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
-      overflow-x: hidden;
+      justify-content: center;
     }
-
-    header {
-      width: 100%;
-      max-width: 1200px;
-      padding: 20px 40px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: relative; 
+    .wrap {
+      width: min(980px, 92vw);
+      padding: 48px 0 64px;
     }
-
-    .logo {
-      font-weight: bold;
-      font-size: 1.2rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      z-index: 10; 
-    }
-
-    .logo i {
-      font-size: 1.5rem;
-      color: var(--primary-color);
-    }
-
-    .menu-toggle {
-      display: none;
-      background: none;
-      border: none;
-      color: var(--text-main);
-      font-size: 1.5rem;
-      cursor: pointer;
-      z-index: 10;
-      transition: color 0.3s;
-    }
-
-    .menu-toggle:hover {
-      color: var(--primary-color);
-    }
-
-    .nav-container {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 5;
-    }
-
-    nav {
-      background-color: var(--card-bg);
-      padding: 6px;
-      border-radius: 50px;
-      display: flex;
-      gap: 8px; 
-      border: 1px solid var(--card-border);
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
-
-    nav a {
-      color: var(--text-muted);
-      text-decoration: none;
-      padding: 8px 24px; 
-      border-radius: 50px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: all 0.3s;
-      white-space: nowrap; 
-    }
-
-    nav a:hover { color: var(--text-main); }
-    nav a.active { background-color: #6366f1; color: white; }
-    
-    .header-spacer { width: 150px; }
-
-    main {
-      width: 100%;
-      max-width: 800px;
-      padding: 60px 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-
-    .badge {
-      background-color: rgba(99, 102, 241, 0.1);
-      color: #818cf8;
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      margin-bottom: 20px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .badge::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      background-color: #818cf8;
-      border-radius: 50%;
-    }
-
     h1 {
-      font-size: 3rem;
-      margin-bottom: 15px;
-      font-weight: 700;
+      margin: 0 0 8px;
+      font-size: clamp(30px, 6vw, 56px);
+      line-height: 1.05;
     }
-
-    h1 span {
-      background: var(--primary-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
     .subtitle {
-      color: var(--text-muted);
-      font-size: 1rem;
-      line-height: 1.5;
-      margin-bottom: 40px;
-      max-width: 600px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 16px;
     }
-
-    .search-box {
+    .panel {
+      background: rgba(17, 24, 39, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+    }
+    #download-form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+    }
+    #url {
       width: 100%;
-      background-color: var(--card-bg);
-      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 14px 16px;
       border-radius: 12px;
-      padding: 8px;
-      display: flex;
-      gap: 10px;
-      box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
-      position: relative;
-    }
-
-    .input-wrapper {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      background-color: #000;
-      border-radius: 8px;
-      padding: 0 15px;
-    }
-
-    .input-wrapper i.fa-link { color: var(--text-muted); }
-    .input-wrapper input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: white;
-      padding: 15px 10px;
-      font-size: 1rem;
+      border: 1px solid #334155;
+      background: #020617;
+      color: var(--text);
+      font-size: 16px;
       outline: none;
     }
-
-    .paste-btn {
-      background: rgba(99, 102, 241, 0.1);
-      color: #818cf8;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: 0.3s;
+    #url:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
     }
-
-    .paste-btn:hover { background: rgba(99, 102, 241, 0.2); }
-
-    .submit-btn {
-      background-color: var(--btn-blue);
-      color: white;
-      border: none;
-      padding: 0 30px;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 1rem;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-width: 130px;
-    }
-
-    .submit-btn:hover { background-color: var(--btn-blue-hover); }
-
-    .submit-btn.loading {
-      background-color: #3f3f46; 
-      cursor: not-allowed;
-      color: #a1a1aa;
-    }
-
-    .spinner {
-      display: none;
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .submit-btn.loading .spinner { display: inline-block; }
-    .submit-btn.loading .btn-text { animation: pulse 1.5s infinite; }
-
-    @keyframes pulse {
-      0% { opacity: 0.6; }
-      50% { opacity: 1; }
-      100% { opacity: 0.6; }
-    }
-
-    .status {
-      margin-top: 15px;
-      font-size: 0.9rem;
-      color: #facc15;
-    }
-
-    .features-inline {
-      display: flex;
-      gap: 25px;
-      margin-top: 25px;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
-
-    .features-inline span {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .features-inline i {
-      color: #10b981;
-      font-size: 0.4rem;
-    }
-
-    .result {
-      margin-top: 40px;
-      width: 100%;
-    }
-    
-    .result.hidden { display: none; }
-
-    .result-card {
-      background-color: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 24px;
-      display: flex;
-      gap: 24px;
-      align-items: flex-start;
-      text-align: left;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-
-    .cover {
-      width: 160px;
-      height: 160px;
-      object-fit: cover;
+    #submit-btn {
+      border: 0;
       border-radius: 12px;
-      background-color: #000;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      padding: 0 22px;
+      min-height: 48px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(90deg, var(--accent-2), #0ea5e9);
+      cursor: pointer;
     }
-
-    .meta {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+    #submit-btn:disabled { opacity: 0.65; cursor: wait; }
+    #status {
+      min-height: 22px;
+      margin: 12px 2px 0;
+      color: #facc15;
+      font-size: 14px;
     }
-
-    .author {
-      color: #a1a1aa;
-      margin-bottom: 8px;
-      font-size: 0.85rem;
-      font-family: monospace;
+    .result.hidden { display: none; }
+    .result {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 16px;
+      align-items: start;
     }
-
-    .meta h2 {
-      font-size: 1.2rem;
-      margin-bottom: 20px;
-      color: white;
-      line-height: 1.4;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+    .thumb {
+      width: 100%;
+      aspect-ratio: 1/1;
+      border-radius: 14px;
+      border: 1px solid #334155;
       overflow: hidden;
+      background: #020617;
     }
-
-    .button.primary {
-      background: var(--primary-gradient);
-      color: white;
-      padding: 12px 24px;
-      border-radius: 8px;
+    #cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .meta-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #0b1220;
+      padding: 14px;
+    }
+    #item-id { margin: 0 0 8px; color: #94a3b8; font-family: Consolas, monospace; font-size: 13px; }
+    #title { margin: 0 0 12px; font-size: 18px; line-height: 1.3; }
+    #download-best {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      color: #fff;
       text-decoration: none;
-      font-size: 0.95rem;
-      font-weight: bold;
-      text-align: center;
-      transition: all 0.3s;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-      width: fit-content;
-      margin-bottom: 20px;
+      background: linear-gradient(90deg, var(--accent), #16a34a);
+      font-weight: 700;
     }
-
-    .button.primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-    }
-
-    /* ==================================================== */
-    /* STYLE CƠ BẢN CHO CÁC NÚT LINK (JS SẼ PHÂN LOẠI MÀU)  */
-    /* ==================================================== */
     #quality-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      width: 100%;
-      border-top: 1px solid var(--card-border);
-      padding-top: 15px;
+      gap: 8px;
     }
-
     #quality-list a {
-      padding: 8px 16px;
-      border-radius: 6px;
+      display: inline-block;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      color: #e2e8f0;
       text-decoration: none;
-      font-size: 0.85rem;
-      font-weight: 600;
-      transition: all 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
+      background: #1e293b;
+      font-size: 13px;
     }
-
-    /* MÀU ĐỎ/HỒNG (HOT) CHO BẢN GỐC BEST */
-    .q-best { background: linear-gradient(90deg, #f43f5e, #e11d48); box-shadow: 0 4px 10px rgba(225, 29, 72, 0.3); }
-    .q-best:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(225, 29, 72, 0.5); }
-
-    /* MÀU CAM (ẤM) CHO BẢN STANDARD */
-    .q-high { background: linear-gradient(90deg, #f97316, #ea580c); box-shadow: 0 4px 10px rgba(234, 88, 12, 0.3); }
-    .q-high:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(234, 88, 12, 0.5); }
-
-    /* MÀU XANH LÁ (TƯƠI MÁT) CHO 720P */
-    .q-mid { background: linear-gradient(90deg, #10b981, #059669); box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }
-    .q-mid:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(5, 150, 105, 0.5); }
-
-    /* MÀU XANH DƯƠNG CHO 480P */
-    .q-low { background: linear-gradient(90deg, #3b82f6, #2563eb); box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3); }
-    .q-low:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(37, 99, 235, 0.5); }
-
-    /* MÀU XÁM TRUNG TÍNH CHO 360P */
-    .q-lowest { background: #3f3f46; color: #d4d4d8 !important; }
-    .q-lowest:hover { background: #52525b; transform: translateY(-2px); }
-    /* ==================================================== */
-
-    .feature-cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      margin-top: 60px;
-      width: 100%;
+    .hint {
+      margin-top: 18px;
+      color: #94a3b8;
+      font-size: 13px;
     }
-
-    .card-item {
-      background-color: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 25px;
-      text-align: left;
-      transition: 0.3s;
-    }
-
-    .card-item:hover { border-color: rgba(99, 102, 241, 0.5); }
-
-    .card-item i {
-      background-color: #27272a;
-      color: var(--text-main);
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 10px;
-      font-size: 1.2rem;
-      margin-bottom: 15px;
-    }
-    
-    .icon-yellow { color: #facc15 !important; }
-    .icon-green { color: #4ade80 !important; }
-    .icon-blue { color: #60a5fa !important; }
-
-    .card-item h3 { font-size: 1.1rem; margin-bottom: 10px; }
-    .card-item p { color: var(--text-muted); font-size: 0.85rem; line-height: 1.6; }
-
-    footer {
-      margin-top: auto;
-      padding: 30px;
-      text-align: center;
-      color: #52525b;
-      font-size: 0.85rem;
-      border-top: 1px solid var(--card-border);
-      width: 100%;
-      max-width: 800px;
-      line-height: 1.8;
-    }
-
-    .copyright {
-      color: #a1a1aa;
-      font-weight: bold;
-    }
-
-    @media (max-width: 850px) {
-      header { padding: 20px; flex-direction: row; }
-      .menu-toggle { display: block; }
-      .header-spacer { display: none; }
-      .nav-container {
-        position: absolute;
-        top: 70px; 
-        right: 20px; 
-        left: auto; 
-        transform: none;
-        width: 220px; 
-        background-color: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(-10px);
-        transition: all 0.3s ease;
-      }
-      .nav-container.active {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
-      }
-      nav { flex-direction: column; background: transparent; border: none; box-shadow: none; padding: 10px; gap: 5px; }
-      nav a { width: 100%; text-align: left; padding: 12px 20px; border-radius: 8px; }
-      .feature-cards { grid-template-columns: 1fr; }
-      .search-box { flex-direction: column; }
-      .submit-btn { padding: 15px; }
-      .features-inline { flex-direction: column; gap: 10px; }
-      .result-card { flex-direction: column; text-align: center; align-items: center; }
-      .meta { align-items: center; }
-      .button.primary { margin: 0 auto 20px auto; }
-      #quality-list { justify-content: center; }
+    .warn { color: #fca5a5; }
+    @media (max-width: 760px) {
+      #download-form { grid-template-columns: 1fr; }
+      .result { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
+  <main class="wrap">
+    <h1>Tai video Jimeng</h1>
+    <p class="subtitle">Dan link chia se Jimeng, he thong se phan tich va tra cac URL tai hop le.</p>
 
-  <header>
-    <div class="logo"><i class="fa-solid fa-play"></i> TIENICH.PRO</div>
-    <button class="menu-toggle" id="mobile-menu-btn"><i class="fa-solid fa-bars"></i></button>
-    <div class="nav-container" id="nav-menu">
-      <nav>
-        <a href="https://tienich.pro">Trang chủ</a>
-        <a href="https://facebook.tienich.pro">Facebook</a>
-        <a href="#" class="active">Jimeng AI</a>
-        <a href="https://tiktok.tienich.pro">TikTok</a>
-        <a href="https://youtube.tienich.pro">Youtube</a>
-      </nav>
-    </div>
-    <div class="header-spacer"></div>
-  </header>
-
-  <main class="page">
-    <div class="badge">Hệ sinh thái Tienich.pro</div>
-    <h1>Tải Video <span>Jimeng AI</span></h1>
-    <p class="subtitle">
-      Hỗ trợ tải xuống video Jimeng (Seedance), TikTok, Facebook, Youtube không logo, chất lượng <strong>HD/4K</strong> miễn phí.
-    </p>
-
-    <section class="panel" style="width: 100%;">
-      <form id="download-form" class="search-box">
-        <div class="input-wrapper">
-          <i class="fa-solid fa-link"></i>
-          <input id="url" name="url" type="text" placeholder="Dán liên kết Jimeng/Seedance vào đây..." autocomplete="off" required />
-          <button type="button" class="paste-btn" onclick="navigator.clipboard.readText().then(text => document.getElementById('url').value = text)"><i class="fa-solid fa-clipboard"></i> Dán</button>
-        </div>
-        <button class="submit-btn" id="submit-btn" type="submit">
-          <span class="spinner"></span>
-          <span class="btn-text">Tải Ngay</span>
-        </button>
+    <section class="panel">
+      <form id="download-form">
+        <input id="url" name="url" type="text" placeholder="https://jimeng.jianying.com/s/.../?t=..." autocomplete="off" required>
+        <button id="submit-btn" type="submit">Phan tich</button>
       </form>
-      <p class="status" id="status" aria-live="polite"></p>
-    </section>
+      <p id="status" aria-live="polite"></p>
 
-    <div class="features-inline">
-      <span><i class="fa-solid fa-circle"></i> An toàn</span>
-      <span><i class="fa-solid fa-circle"></i> Miễn phí 100%</span>
-      <span><i class="fa-solid fa-circle"></i> Không Watermark</span>
-    </div>
-
-    <section class="result hidden" id="result">
-      <article class="result-card">
-        <img id="cover" class="cover" alt="Jimeng thumbnail">
-        <div class="meta">
-          <p class="author" id="item-id"></p>
+      <section class="result hidden" id="result">
+        <div class="thumb">
+          <img id="cover" class="cover" alt="thumbnail">
+        </div>
+        <div class="meta-box">
+          <p id="item-id"></p>
           <h2 id="title"></h2>
-          <a class="button primary" id="download-best" href="#" target="_blank" rel="noopener">Tải bản gốc</a>
+          <a id="download-best" href="#" target="_blank" rel="noopener">Tai nguon uu tien</a>
           <div id="quality-list"></div>
         </div>
-      </article>
+      </section>
     </section>
 
-    <div class="feature-cards">
-      <div class="card-item"><i class="fa-solid fa-bolt icon-yellow"></i><h3>Chất lượng 4K</h3><p>Giữ nguyên chất lượng gốc, sắc nét từng chi tiết.</p></div>
-      <div class="card-item"><i class="fa-solid fa-shield-halved icon-green"></i><h3>Ẩn danh</h3><p>Không lưu logs, không cần đăng nhập tài khoản.</p></div>
-      <div class="card-item"><i class="fa-solid fa-mobile-screen icon-blue"></i><h3>Đa nền tảng</h3><p>Hoạt động tốt trên iOS, Android, PC và máy tính bảng.</p></div>
-    </div>
+    <p class="hint">
+      Luu y: Neu URL nguon tu Jimeng da co watermark thi he thong khong the tu xoa watermark.
+      <span class="warn">Chi tai dung theo file nguon duoc tra ve.</span>
+    </p>
   </main>
-
-  <footer>
-    Tienich.pro không được liên kết với Jimeng, Seedance, TikTok, Facebook hoặc bất kỳ nền tảng nào.<br>
-    <span class="copyright">&copy; 2026 Bản quyền PTS.</span>
-  </footer>
-
   <script src="/app.js"></script>
-  
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const menuBtn = document.getElementById('mobile-menu-btn');
-      const navMenu = document.getElementById('nav-menu');
-      const icon = menuBtn.querySelector('i');
-
-      menuBtn.addEventListener('click', function() {
-        navMenu.classList.toggle('active');
-        if (navMenu.classList.contains('active')) {
-          icon.classList.remove('fa-bars'); icon.classList.add('fa-xmark');
-        } else {
-          icon.classList.remove('fa-xmark'); icon.classList.add('fa-bars');
-        }
-      });
-      
-      document.addEventListener('click', function(event) {
-        if (!navMenu.contains(event.target) && !menuBtn.contains(event.target) && navMenu.classList.contains('active')) {
-          navMenu.classList.remove('active'); icon.classList.remove('fa-xmark'); icon.classList.add('fa-bars');
-        }
-      });
-      
-      const downloadForm = document.getElementById('download-form');
-      const submitBtn = document.getElementById('submit-btn');
-      const btnText = submitBtn.querySelector('.btn-text');
-      const resultSection = document.getElementById('result');
-      const statusText = document.getElementById('status');
-
-      downloadForm.addEventListener('submit', function() {
-        submitBtn.classList.add('loading');
-        btnText.textContent = 'Đang xử lý...';
-        submitBtn.disabled = true; 
-
-        const observer = new MutationObserver(function(mutations) {
-          mutations.forEach(function(mutation) {
-            if (!resultSection.classList.contains('hidden') || statusText.textContent !== '') {
-              setTimeout(() => {
-                submitBtn.classList.remove('loading');
-                btnText.textContent = 'Tải Ngay';
-                submitBtn.disabled = false;
-                
-                // === JS MA THUẬT: ĐỌC TÊN NÚT VÀ PHÂN MÀU TỰ ĐỘNG ===
-                const qualityLinks = document.querySelectorAll('#quality-list a');
-                qualityLinks.forEach(link => {
-                  const text = link.textContent.toLowerCase();
-                  if (text.includes('best') || text.includes('gốc')) {
-                    link.className = 'q-best';
-                  } else if (text.includes('standard') || text.includes('chuẩn')) {
-                    link.className = 'q-high';
-                  } else if (text.includes('720')) {
-                    link.className = 'q-mid';
-                  } else if (text.includes('480')) {
-                    link.className = 'q-low';
-                  } else {
-                    link.className = 'q-lowest'; // Cho 360p hoặc bất kỳ nút lạ nào khác
-                  }
-                });
-                // ===================================================
-                
-              }, 500); 
-              
-              observer.disconnect();
-            }
-          });
-        });
-
-        observer.observe(resultSection, { attributes: true, attributeFilter: ['class'] });
-        observer.observe(statusText, { childList: true, characterData: true, subtree: true });
-        
-        setTimeout(() => {
-           if(submitBtn.classList.contains('loading')){
-              submitBtn.classList.remove('loading');
-              btnText.textContent = 'Tải Ngay';
-              submitBtn.disabled = false;
-              observer.disconnect();
-           }
-        }, 15000);
-      });
-    });
-  </script>
 </body>
 </html>

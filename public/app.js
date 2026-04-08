@@ -11,8 +11,7 @@ const qualityList = document.getElementById("quality-list");
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
-  // Chỉnh lại màu báo lỗi/thành công cho hợp giao diện tối
-  statusText.style.color = isError ? "#f87171" : "#facc15"; 
+  statusText.style.color = isError ? "#f87171" : "#facc15";
 }
 
 function makeDownloadUrl(source, name) {
@@ -23,10 +22,34 @@ function makeDownloadUrl(source, name) {
 function resetResult() {
   resultSection.classList.add("hidden");
   cover.removeAttribute("src");
-  itemIdEl.textContent = "Mã:";
-  titleEl.textContent = "Video đã sẵn sàng để tải.";
+  itemIdEl.textContent = "";
+  titleEl.textContent = "";
   downloadBest.setAttribute("href", "#");
   qualityList.innerHTML = "";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeJimengInput(rawInput) {
+  const trimmed = String(rawInput || "").trim();
+  const urlRegex = /(https?:\/\/jimeng\.jianying\.com\/s\/[a-zA-Z0-9_-]+\/?(?:\?[^\s]*)?)/i;
+  const match = trimmed.match(urlRegex);
+  return match ? match[0] : "";
+}
+
+function humanWatermarkStatus(status) {
+  if (status === "likely_no_watermark") return "co the khong watermark";
+  if (status === "likely_watermark") return "co watermark";
+  return "khong ro watermark";
+}
+
+function qualityClassByIndex(index) {
+  if (index === 0) return "background:#166534;border-color:#22c55e";
+  if (index === 1) return "background:#1d4ed8;border-color:#3b82f6";
+  if (index === 2) return "background:#7c2d12;border-color:#fb923c";
+  return "background:#1f2937;border-color:#475569";
 }
 
 function renderQualities(itemId, qualities) {
@@ -34,27 +57,23 @@ function renderQualities(itemId, qualities) {
 
   qualities.forEach((item, index) => {
     if (!item || !item.url) return;
-    const label = item.label || `Chất lượng ${index + 1}`;
-    const name = `jimeng_${itemId || Date.now()}_${item.quality || index + 1}.mp4`;
+    const qualityKey = item.quality || String(index + 1);
+    const name = `jimeng_${itemId || Date.now()}_${qualityKey}.mp4`;
+    const label = item.label || `Nguon ${index + 1}`;
+    const wm = humanWatermarkStatus(item.watermark_status);
 
     const a = document.createElement("a");
-    // Bỏ class button đi vì giao diện mới đã tự CSS cho thẻ <a> trong quality-list rồi
     a.href = makeDownloadUrl(item.url, name);
     a.target = "_blank";
     a.rel = "noopener";
-    a.textContent = label;
-
+    a.style.cssText = qualityClassByIndex(index);
+    a.textContent = `${label} - ${wm}`;
     qualityList.appendChild(a);
   });
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function resolveWithRetry(url) {
   let lastError = null;
-
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const response = await fetch("/api/resolve", {
@@ -71,89 +90,74 @@ async function resolveWithRetry(url) {
       }
 
       if (!response.ok) {
-        const isRetriableStatus = response.status >= 500;
-        if (isRetriableStatus && attempt === 0) {
-          setStatus("Đang thử lại kết nối...");
+        if (response.status >= 500 && attempt === 0) {
+          setStatus("Server ban dau loi, dang thu lai...");
           await sleep(900);
           continue;
         }
-
-        throw new Error(payload?.error || "Không thể xử lý link này.");
+        throw new Error(payload?.error || "Khong the xu ly link nay.");
       }
 
       return payload || {};
     } catch (error) {
       lastError = error;
       const message = String(error?.message || "").toLowerCase();
-      const isRetriableNetworkError = message.includes("failed to fetch") || message.includes("network");
-
-      if (isRetriableNetworkError && attempt === 0) {
-        setStatus("Mạng chưa ổn định, đang thử lại...");
+      const retryable = message.includes("failed to fetch") || message.includes("network");
+      if (retryable && attempt === 0) {
+        setStatus("Ket noi chua on dinh, dang thu lai...");
         await sleep(900);
         continue;
       }
-
       throw error;
     }
   }
-
-  throw lastError || new Error("Không thể xử lý link này.");
+  throw lastError || new Error("Khong the xu ly link nay.");
 }
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const rawInput = input.value.trim();
-  if (!rawInput) {
-    setStatus("Vui lòng dán link Jimeng vào ô trống.", true);
+  const finalUrl = normalizeJimengInput(input.value);
+  if (!finalUrl) {
+    setStatus("Khong tim thay link Jimeng hop le.", true);
     resetResult();
     return;
   }
-
-  // === XỬ LÝ LỌC LINK TỪ ĐOẠN TEXT LỘN XỘN ===
-  const linkRegex = /(https?:\/\/jimeng\.jianying\.com\/s\/[a-zA-Z0-9_-]+\/?)/i;
-  const match = rawInput.match(linkRegex);
-
-  let finalUrl = "";
-  if (match && match[0]) {
-    finalUrl = match[0];
-    // Thay thế đoạn text dài bằng link sạch vừa lọc được vào ô input
-    input.value = finalUrl; 
-  } else {
-    setStatus("Không tìm thấy link Jimeng hợp lệ nào!", true);
-    resetResult();
-    return;
-  }
-  // ===========================================
+  input.value = finalUrl;
 
   submitBtn.disabled = true;
-  setStatus(""); // Xóa text thông báo cũ để nhường chỗ cho nút "Đang xử lý"
+  setStatus("Dang phan tich link...");
   resetResult();
 
   try {
     const payload = await resolveWithRetry(finalUrl);
     const qualities = Array.isArray(payload.qualities) ? payload.qualities : [];
     if (qualities.length === 0) {
-      throw new Error("Không tìm thấy file để tải xuống.");
+      throw new Error("Khong tim thay file de tai.");
     }
 
-    const itemId = payload.item_id || "";
+    const itemId = payload.item_id || "N/A";
     const best = qualities[0];
+    const bestStatus = humanWatermarkStatus(best.watermark_status);
 
     if (payload.cover_url) {
       cover.src = payload.cover_url;
     }
 
-    itemIdEl.textContent = `Mã hệ thống: ${itemId || "N/A"}`;
-    titleEl.textContent = "Đã tìm thấy video. Bạn có thể tải ngay.";
-    downloadBest.href = makeDownloadUrl(best.url, `jimeng_${itemId || Date.now()}_origin.mp4`);
+    itemIdEl.textContent = `item_id: ${itemId}`;
+    titleEl.textContent = `Da tim thay video. Nguon uu tien: ${bestStatus}.`;
+    downloadBest.href = makeDownloadUrl(best.url, `jimeng_${itemId}_best.mp4`);
 
     renderQualities(itemId, qualities);
     resultSection.classList.remove("hidden");
-    setStatus("Phân tích dữ liệu thành công!");
-    
+
+    if (best.watermark_status === "likely_watermark") {
+      setStatus("Nguon uu tien tu Jimeng dang co watermark.", true);
+    } else {
+      setStatus("Phan tich thanh cong.");
+    }
   } catch (error) {
-    setStatus(error.message || "Đã có lỗi xảy ra trong quá trình xử lý.", true);
+    setStatus(error.message || "Da co loi trong qua trinh xu ly.", true);
     resetResult();
   } finally {
     submitBtn.disabled = false;

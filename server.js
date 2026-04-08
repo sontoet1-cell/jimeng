@@ -5,6 +5,11 @@ const { URL } = require("url");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
+const RESOLVE_CACHE_TTL_MS = 90 * 1000;
+
+const resolveCache = new Map();
+const inFlightResolves = new Map();
+let sharedBrowserPromise = null;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -44,20 +49,34 @@ function dedupeQualities(items) {
   });
 }
 
+function scoreSourceUrl(url) {
+  const value = String(url || "").toLowerCase();
+  if (!value.startsWith("http")) return -1000;
+
+  let score = 0;
+  if (value.includes(".mp4")) score += 5;
+  if (value.includes("watermark")) score -= 100;
+  if (value.includes("display_watermark")) score -= 120;
+  if (value.includes("no_watermark") || value.includes("without_watermark")) score += 120;
+  if (value.includes("origin")) score += 10;
+  return score;
+}
+
 function normalizeVideoResult(raw) {
   const urls = Array.isArray(raw?.qualities) ? raw.qualities : [];
   const normalized = dedupeQualities(
     urls
       .filter((item) => typeof item?.url === "string" && /^https?:\/\//i.test(item.url))
+      .sort((a, b) => scoreSourceUrl(b.url) - scoreSourceUrl(a.url))
       .map((item, index) => ({
-        label: item.label || (index === 0 ? "Origin (No Watermark)" : `Quality ${index + 1}`),
+        label: item.label || (index === 0 ? "Nguon uu tien" : `Quality ${index + 1}`),
         quality: item.quality || `q${index + 1}`,
         url: item.url,
         width: Number(item.width) || 0,
         height: Number(item.height) || 0,
         size: Number(item.size) || 0,
         fps: Number(item.fps) || 0,
-        is_clean: item.is_clean !== false
+        watermark_status: item.watermark_status || "unknown"
       }))
   );
 
@@ -72,19 +91,56 @@ function normalizeVideoResult(raw) {
   };
 }
 
+function collectUrlsDeep(value, bucket = []) {
+  if (!value) return bucket;
+  if (typeof value === "string") {
+    if (/^https?:\/\//i.test(value)) bucket.push(value);
+    return bucket;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectUrlsDeep(item, bucket);
+    return bucket;
+  }
+  if (typeof value === "object") {
+    for (const v of Object.values(value)) collectUrlsDeep(v, bucket);
+  }
+  return bucket;
+}
+
 async function resolveRedirectInfo(url) {
   const response = await fetch(url, {
     method: "GET",
-    redirect: "manual",
+    redirect: "follow",
     headers: { "User-Agent": "Mozilla/5.0" }
   });
 
-  const location = response.headers.get("location") || "";
-  if (!location) return { itemId: "", location: "" };
-
-  const redirected = new URL(location, url);
+  const finalUrl = response.url || url;
+  const redirected = new URL(finalUrl, url);
   const itemId = redirected.searchParams.get("id") || "";
   return { itemId, location: redirected.toString() };
+}
+
+function extractFromMetadata(metadata) {
+  const downloadInfo = metadata?.download_info || {};
+  const allUrls = collectUrlsDeep(downloadInfo, []);
+
+  if (typeof metadata?.video_url === "string") {
+    allUrls.push(metadata.video_url);
+  }
+
+  const unique = [...new Set(allUrls)];
+  return unique
+    .map((url, index) => {
+      const isLikelyNoWatermark = /without_watermark|no_watermark/i.test(url) || !/display_watermark|watermark/i.test(url);
+      return {
+        label: index === 0 ? "Nguon Jimeng" : `Nguon ${index + 1}`,
+        quality: index === 0 ? "origin" : `alt_${index + 1}`,
+        url,
+        width: Number(metadata?.width) || 0,
+        height: Number(metadata?.height) || 0,
+        watermark_status: isLikelyNoWatermark ? "likely_no_watermark" : "likely_watermark"
+      };
+    });
 }
 
 async function tryResolveViaJimengApi(url) {
@@ -112,31 +168,7 @@ async function tryResolveViaJimengApi(url) {
 
   const item = payload.data;
   const metadata = item.metadata || {};
-  const downloadInfo = metadata.download_info || {};
-
-  const qualities = [];
-  if (typeof downloadInfo.watermark_ending_url === "string") {
-    qualities.push({
-      label: "Origin (No Watermark)",
-      quality: "origin",
-      url: downloadInfo.watermark_ending_url,
-      width: Number(metadata.width) || 0,
-      height: Number(metadata.height) || 0,
-      is_clean: true
-    });
-  }
-
-  if (typeof metadata.video_url === "string") {
-    qualities.push({
-      label: "Fallback",
-      quality: "fallback",
-      url: metadata.video_url,
-      width: Number(metadata.width) || 0,
-      height: Number(metadata.height) || 0,
-      is_clean: true
-    });
-  }
-
+  const qualities = extractFromMetadata(metadata);
   if (qualities.length === 0) return null;
 
   return normalizeVideoResult({
@@ -168,6 +200,33 @@ function findBrowserExecutable() {
   }) || "";
 }
 
+async function getSharedBrowser() {
+  if (sharedBrowserPromise) return sharedBrowserPromise;
+
+  const puppeteer = require("puppeteer-core");
+  const executablePath = findBrowserExecutable();
+  if (!executablePath) {
+    throw new Error("Khong tim thay Chrome/Edge. Dat CHROME_PATH hoac cai Chromium.");
+  }
+
+  sharedBrowserPromise = puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+  });
+
+  try {
+    const browser = await sharedBrowserPromise;
+    browser.on("disconnected", () => {
+      sharedBrowserPromise = null;
+    });
+    return browser;
+  } catch (error) {
+    sharedBrowserPromise = null;
+    throw error;
+  }
+}
+
 function extractFromLandingPayload(payload) {
   const root = payload?.data?.page_info?.creation || payload?.data?.creation || null;
   const list = payload?.data?.page_info?.creation_list || payload?.data?.creation_list || [];
@@ -175,31 +234,7 @@ function extractFromLandingPayload(payload) {
 
   for (const item of candidates) {
     const metadata = item?.metadata || {};
-    const downloadInfo = metadata.download_info || {};
-    const qualities = [];
-
-    if (typeof downloadInfo.watermark_ending_url === "string") {
-      qualities.push({
-        label: "Origin (No Watermark)",
-        quality: "origin",
-        url: downloadInfo.watermark_ending_url,
-        width: Number(metadata.width) || 0,
-        height: Number(metadata.height) || 0,
-        is_clean: true
-      });
-    }
-
-    if (typeof metadata.video_url === "string") {
-      qualities.push({
-        label: "Fallback",
-        quality: "fallback",
-        url: metadata.video_url,
-        width: Number(metadata.width) || 0,
-        height: Number(metadata.height) || 0,
-        is_clean: true
-      });
-    }
-
+    const qualities = extractFromMetadata(metadata);
     if (qualities.length > 0) {
       return {
         item_id: metadata.video_id || "",
@@ -213,48 +248,36 @@ function extractFromLandingPayload(payload) {
 }
 
 async function resolveViaBrowserAutomation(url) {
-  // Lazy-load to avoid failing startup if dependency is missing.
-  const puppeteer = require("puppeteer-core");
-  const executablePath = findBrowserExecutable();
-
-  if (!executablePath) {
-    throw new Error("Khong tim thay Chrome/Edge. Dat CHROME_PATH hoac cai trinh duyet Chromium.");
-  }
-
-  const browser = await puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu"
-    ]
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
 
   try {
-    const page = await browser.newPage();
     await page.setUserAgent("Mozilla/5.0");
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      const type = request.resourceType();
+      if (type === "image" || type === "font" || type === "stylesheet" || type === "media") {
+        request.abort().catch(() => {});
+        return;
+      }
+      request.continue().catch(() => {});
+    });
+
     let extracted = null;
 
     page.on("response", async (response) => {
       if (extracted) return;
       const responseUrl = response.url();
-      if (
-        !responseUrl.includes("/luckycat/cn/jianying/campaign/v1/dreamina/share/landing_page")
-        && !responseUrl.includes("/mproject/creation/list_by_ids")
-      ) {
-        return;
-      }
+      const isTarget = responseUrl.includes("/luckycat/cn/jianying/campaign/v1/dreamina/share/landing_page")
+        || responseUrl.includes("/mproject/creation/list_by_ids");
+      if (!isTarget) return;
 
       try {
         const json = await response.json();
         const parsed = extractFromLandingPayload(json);
-        if (parsed) {
-          extracted = parsed;
-        }
+        if (parsed) extracted = parsed;
       } catch {
-        // Ignore non-JSON or blocked responses.
+        // Ignore parse errors.
       }
     });
 
@@ -262,11 +285,15 @@ async function resolveViaBrowserAutomation(url) {
       const responseUrl = response.url();
       return responseUrl.includes("/luckycat/cn/jianying/campaign/v1/dreamina/share/landing_page")
         || responseUrl.includes("/mproject/creation/list_by_ids");
-    }, { timeout: 30000 }).catch(() => null);
+    }, { timeout: 12000 }).catch(() => null);
 
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
     await targetResponse;
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+
+    const waitUntil = Date.now() + 3500;
+    while (!extracted && Date.now() < waitUntil) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
 
     if (!extracted) {
       const domVideo = await page.evaluate(() => {
@@ -284,12 +311,12 @@ async function resolveViaBrowserAutomation(url) {
           item_id: idMatch?.[1] || "",
           cover_url: domVideo.cover || "",
           qualities: [{
-            label: "Origin (No Watermark)",
+            label: "Video tren trang chia se",
             quality: "origin",
             url: domVideo.url,
             width: 0,
             height: 0,
-            is_clean: true
+            watermark_status: /watermark/i.test(domVideo.url) ? "likely_watermark" : "unknown"
           }]
         };
       }
@@ -301,31 +328,68 @@ async function resolveViaBrowserAutomation(url) {
 
     return normalizeVideoResult(extracted);
   } finally {
-    await browser.close();
+    await page.close().catch(() => {});
   }
 }
 
-async function resolveJimengVideo(url) {
-  const apiResult = await tryResolveViaJimengApi(url).catch(() => null);
-  if (apiResult) return apiResult;
-
-  let lastError = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      return await resolveViaBrowserAutomation(url);
-    } catch (error) {
-      lastError = error;
-      const message = String(error?.message || "").toLowerCase();
-      const shouldRetry = message.includes("timeout") || message.includes("fetch") || message.includes("network");
-      if (attempt === 0 && shouldRetry) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        continue;
-      }
-      throw error;
-    }
+function getCachedResolve(url) {
+  const cached = resolveCache.get(url);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    resolveCache.delete(url);
+    return null;
   }
+  return cached.value;
+}
 
-  throw lastError || new Error("Khong the phan tich link Jimeng.");
+function putCachedResolve(url, value) {
+  resolveCache.set(url, {
+    value,
+    expiresAt: Date.now() + RESOLVE_CACHE_TTL_MS
+  });
+}
+
+async function resolveJimengVideo(url) {
+  const cached = getCachedResolve(url);
+  if (cached) return cached;
+
+  const inFlight = inFlightResolves.get(url);
+  if (inFlight) return inFlight;
+
+  const work = (async () => {
+    const apiResult = await tryResolveViaJimengApi(url).catch(() => null);
+    if (apiResult) {
+      putCachedResolve(url, apiResult);
+      return apiResult;
+    }
+
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const resolved = await resolveViaBrowserAutomation(url);
+        putCachedResolve(url, resolved);
+        return resolved;
+      } catch (error) {
+        lastError = error;
+        const message = String(error?.message || "").toLowerCase();
+        const shouldRetry = message.includes("timeout") || message.includes("fetch") || message.includes("network");
+        if (attempt === 0 && shouldRetry) {
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw lastError || new Error("Khong the phan tich link Jimeng.");
+  })();
+
+  inFlightResolves.set(url, work);
+  try {
+    return await work;
+  } finally {
+    inFlightResolves.delete(url);
+  }
 }
 
 function isUnsafeHostname(hostname) {
@@ -339,6 +403,11 @@ function isUnsafeHostname(hostname) {
     if (a === 172 && b >= 16 && b <= 31) return true;
   }
   return false;
+}
+
+function isLikelyVodHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host.includes("vlabvod.com") || host.includes("bytecdn") || host.includes("bytedancevod.com");
 }
 
 function sanitizeFilename(input) {
@@ -366,7 +435,6 @@ function serveStaticFile(req, res) {
         res.end("Not found");
         return;
       }
-
       res.writeHead(500);
       res.end("Internal server error");
       return;
@@ -381,20 +449,14 @@ function serveStaticFile(req, res) {
 function readRequestBody(req) {
   return new Promise((resolve, reject) => {
     let raw = "";
-
     req.on("data", (chunk) => {
       raw += chunk;
-
       if (raw.length > 1024 * 1024) {
         reject(new Error("Payload too large"));
         req.destroy();
       }
     });
-
-    req.on("end", () => {
-      resolve(raw);
-    });
-
+    req.on("end", () => resolve(raw));
     req.on("error", reject);
   });
 }
@@ -411,15 +473,8 @@ const server = http.createServer(async (req, res) => {
       const body = rawBody ? JSON.parse(rawBody) : {};
       const url = typeof body.url === "string" ? body.url.trim() : "";
 
-      if (!url) {
-        sendJson(res, 400, { error: "Vui long nhap link Jimeng." });
-        return;
-      }
-
-      if (!isJimengUrl(url)) {
-        sendJson(res, 400, { error: "Link khong phai Jimeng hop le." });
-        return;
-      }
+      if (!url) return sendJson(res, 400, { error: "Vui long nhap link Jimeng." });
+      if (!isJimengUrl(url)) return sendJson(res, 400, { error: "Link khong phai Jimeng hop le." });
 
       const result = await resolveJimengVideo(url);
       sendJson(res, 200, result);
@@ -427,7 +482,6 @@ const server = http.createServer(async (req, res) => {
       const message = error instanceof SyntaxError
         ? "Request JSON khong hop le."
         : error.message || "Khong the xu ly link Jimeng luc nay.";
-
       sendJson(res, 500, { error: message });
     }
     return;
@@ -440,26 +494,30 @@ const server = http.createServer(async (req, res) => {
       const sourceUrl = parsed.searchParams.get("url") || "";
       const filename = sanitizeFilename(parsed.searchParams.get("name"));
 
-      if (!sourceUrl) {
-        sendJson(res, 400, { error: "Thieu tham so url." });
-        return;
-      }
+      if (!sourceUrl) return sendJson(res, 400, { error: "Thieu tham so url." });
 
       const sourceParsed = new URL(sourceUrl);
       if (!/^https?:$/i.test(sourceParsed.protocol) || isUnsafeHostname(sourceParsed.hostname)) {
-        sendJson(res, 400, { error: "Nguon tai khong hop le." });
-        return;
+        return sendJson(res, 400, { error: "Nguon tai khong hop le." });
       }
 
       const upstream = await fetch(sourceUrl, {
         method: "GET",
-        headers: { "User-Agent": "Mozilla/5.0" },
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+          Referer: "https://jimeng.jianying.com/",
+          Origin: "https://jimeng.jianying.com"
+        },
         redirect: "follow"
       });
 
       if (!upstream.ok || !upstream.body) {
-        sendJson(res, 502, { error: "Khong the tai video tu nguon." });
-        return;
+        if ((upstream.status === 403 || upstream.status === 404) && isLikelyVodHost(sourceParsed.hostname)) {
+          res.writeHead(302, { Location: sourceUrl, "Cache-Control": "no-store" });
+          res.end();
+          return;
+        }
+        return sendJson(res, 502, { error: "Khong the tai video tu nguon." });
       }
 
       const contentType = upstream.headers.get("content-type") || "video/mp4";

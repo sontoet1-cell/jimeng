@@ -400,6 +400,11 @@ function readRequestBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (req.method === "GET" && req.url === "/healthz") {
+    sendJson(res, 200, { ok: true, uptime: process.uptime() });
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/api/resolve") {
     try {
       const rawBody = await readRequestBody(req);
@@ -497,5 +502,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
+  const chromeCandidate = findBrowserExecutable() || process.env.CHROME_PATH || "(not found)";
+  console.log(`[boot] Node ${process.version}`);
+  console.log(`[boot] PORT=${PORT}`);
+  console.log(`[boot] CHROME_PATH=${chromeCandidate}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });

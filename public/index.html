@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tải Video TikTok Không Logo</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    :root {
+      --bg-color: #09090b;
+      --text-main: #ffffff;
+      --text-muted: #a1a1aa;
+      --card-bg: #18181b;
+      --card-border: #27272a;
+      --primary-color: #a855f7;
+      --primary-gradient: linear-gradient(90deg, #d946ef, #8b5cf6);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-image: radial-gradient(circle at 50% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+    }
+
+    /* HEADER */
+    header {
+      width: 100%;
+      max-width: 1200px;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-weight: bold;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo i {
+      font-size: 1.5rem;
+    }
+
+    nav {
+      background-color: var(--card-bg);
+      padding: 5px;
+      border-radius: 50px;
+      display: flex;
+      gap: 5px;
+      border: 1px solid var(--card-border);
+    }
+
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 8px 20px;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+
+    nav a:hover {
+      color: var(--text-main);
+    }
+
+    nav a.active {
+      background-color: #8b5cf6;
+      color: white;
+    }
+
+    /* MAIN CONTENT */
+    main {
+      width: 100%;
+      max-width: 800px;
+      padding: 60px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .badge {
+      background-color: rgba(168, 85, 247, 0.1);
+      color: var(--primary-color);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      margin-bottom: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background-color: var(--primary-color);
+      border-radius: 50%;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 15px;
+      font-weight: 700;
+    }
+
+    h1 span {
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.5;
+      margin-bottom: 40px;
+      max-width: 600px;
+    }
+
+    /* SEARCH FORM */
+    .search-box {
+      width: 100%;
+      background-color: var(--card-bg);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 12px;
+      padding: 8px;
+      display: flex;
+      gap: 10px;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+      position: relative;
+    }
+
+    .input-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background-color: #000;
+      border-radius: 8px;
+      padding: 0 15px;
+    }
+
+    .input-wrapper i.fa-link {
+      color: var(--text-muted);
+    }
+
+    .input-wrapper input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: white;
+      padding: 15px 10px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .paste-btn {
+      background: rgba(168, 85, 247, 0.1);
+      color: var(--primary-color);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: 0.3s;
+    }
+
+    .paste-btn:hover {
+      background: rgba(168, 85, 247, 0.2);
+    }
+
+    .submit-btn {
+      background-color: #27272a;
+      color: white;
+      border: none;
+      padding: 0 30px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: 0.3s;
+    }
+
+    .submit-btn:hover {
+      background-color: #3f3f46;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* FEATURES INLINE */
+    .features-inline {
+      display: flex;
+      gap: 20px;
+      margin-top: 25px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .features-inline span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .features-inline i {
+      color: #10b981; /* Green check */
+      font-size: 0.6rem;
+    }
+
+    /* CARDS */
+    .feature-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 60px;
+      width: 100%;
+    }
+
+    .card-item {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 25px;
+      text-align: left;
+      transition: 0.3s;
+    }
+
+    .card-item:hover {
+      border-color: rgba(168, 85, 247, 0.5);
+    }
+
+    .card-item i {
+      background-color: #27272a;
+      color: var(--text-main);
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+    }
+
+    .card-item h3 {
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+    }
+
+    .card-item p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    /* RESULT SECTION */
+    .result {
+      margin-top: 40px;
+      width: 100%;
+    }
+    
+    .result.hidden {
+      display: none;
+    }
+
+    .result-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      text-align: left;
+    }
+
+    .cover {
+      width: 120px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 12px;
+    }
+
+    .meta {
+      flex: 1;
+    }
+
+    .author {
+      color: var(--primary-color);
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .meta h2 {
+      font-size: 1.1rem;
+      margin-bottom: 15px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: bold;
+      text-align: center;
+      transition: 0.3s;
+    }
+
+    .button.primary {
+      background: var(--primary-gradient);
+      color: white;
+    }
+
+    .button.secondary {
+      background: #27272a;
+      color: white;
+    }
+
+    /* FOOTER */
+    footer {
+      margin-top: auto;
+      padding: 30px;
+      text-align: center;
+      color: #52525b;
+      font-size: 0.85rem;
+      border-top: 1px solid var(--card-border);
+      width: 100%;
+      max-width: 800px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .feature-cards {
+        grid-template-columns: 1fr;
+      }
+      .search-box {
+        flex-direction: column;
+      }
+      .submit-btn {
+        padding: 15px;
+      }
+      .features-inline {
+        flex-direction: column;
+        gap: 10px;
+      }
+      nav {
+        display: none; 
+      }
+      .result-card {
+        flex-direction: column;
+        text-align: center;
+      }
+      .actions {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo"><i class="fa-brands fa-tiktok"></i> TIENICH.PRO</div>
+    <nav>
+      <a href="#">Trang chủ</a>
+      <a href="#">Facebook</a>
+      <a href="#">Sora AI</a>
+      <a href="#" class="active">TikTok</a>
+      <a href="#">Youtube</a>
+    </nav>
+    <div style="width: 100px;"></div> </header>
+
+  <main>
+    <div class="badge">Công cụ từ tienich.pro</div>
+    <h1>Tải Video <span>TikTok</span></h1>
+    <p class="subtitle">
+      Hỗ trợ tải xuống video TikTok, Douyin, SnapTik không logo và MP3 chất lượng <strong>HD/4K</strong> miễn phí.
+    </p>
+
+    <form id="download-form" class="search-box">
+      <div class="input-wrapper">
+        <i class="fa-solid fa-link"></i>
+        <input
+          id="url"
+          name="url"
+          type="url"
+          placeholder="Dán liên kết TikTok vào đây..."
+          autocomplete="off"
+          required
+        />
+        <button type="button" class="paste-btn" onclick="navigator.clipboard.readText().then(text => document.getElementById('url').value = text)"><i class="fa-solid fa-clipboard"></i> Dán</button>
+      </div>
+      <button type="submit" id="submit-btn" class="submit-btn">Tải Ngay</button>
+    </form>
+    <p id="status" class="status" aria-live="polite"></p>
+
+    <div class="features-inline">
+      <span><i class="fa-solid fa-circle"></i> An toàn</span>
+      <span><i class="fa-solid fa-circle"></i> Miễn phí</span>
+      <span><i class="fa-solid fa-circle"></i> Không giới hạn</span>
+    </div>
+
+    <section id="result" class="result hidden">
+      <div class="result-card">
+        <img id="cover" alt="Thumbnail video" class="cover" src="https://via.placeholder.com/150" />
+        <div class="meta">
+          <p id="author" class="author">@username</p>
+          <h2 id="title">Tiêu đề video sẽ hiển thị ở đây...</h2>
+          <div class="actions">
+            <a id="download-normal" class="button primary" href="#" target="_blank" rel="noopener">Tải HD</a>
+            <a id="download-hd" class="button secondary" href="#" target="_blank" rel="noopener">Tải MP3</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="feature-cards">
+      <div class="card-item">
+        <i class="fa-solid fa-bolt"></i>
+        <h3>Chất lượng 4K</h3>
+        <p>Công nghệ xử lý AI giúp giữ nguyên chất lượng gốc lên đến 4K, hình ảnh sắc nét, âm thanh sống động.</p>
+      </div>
+      <div class="card-item">
+        <i class="fa-solid fa-shield-halved"></i>
+        <h3>Ẩn danh tuyệt đối</h3>
+        <p>Không lưu logs, không cần đăng nhập. Mọi dữ liệu tải xuống đều được mã hóa và xóa sau phiên làm việc.</p>
+      </div>
+      <div class="card-item">
+        <i class="fa-solid fa-mobile-screen"></i>
+        <h3>Đa nền tảng</h3>
+        <p>Giao diện tối ưu Dark Mode cho mắt. Hoạt động mượt mà trên iOS, Android và PC.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Tienich.pro không được liên kết với TikTok, Facebook hoặc bất kỳ nền tảng nào.
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

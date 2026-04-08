@@ -1,0 +1,9 @@
+{
+  "name": "tiktok-no-watermark-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web tai video TikTok khong logo",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

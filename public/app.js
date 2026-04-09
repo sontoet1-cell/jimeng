@@ -349,6 +349,7 @@ if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
     if (!url) {
       fbIdResult.textContent = "Vui long nhap link Facebook.";
       fbIdResult.style.color = "#f87171";
+      if (fbIdCopyBtn) fbIdCopyBtn.classList.add("hidden");
       return;
     }
 
@@ -376,10 +377,12 @@ if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
         ? `Facebook ID: ${id} (username: ${username})`
         : `Facebook ID: ${id}`;
       fbIdResult.style.color = "#22c55e";
+      if (fbIdCopyBtn) fbIdCopyBtn.classList.remove("hidden");
     } catch (error) {
       currentFacebookId = "";
       fbIdResult.textContent = error.message || "Khong truy van duoc Facebook ID.";
       fbIdResult.style.color = "#f87171";
+      if (fbIdCopyBtn) fbIdCopyBtn.classList.add("hidden");
     } finally {
       fbIdBtn.disabled = false;
     }

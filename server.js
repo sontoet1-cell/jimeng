@@ -535,6 +535,26 @@ function extractFacebookIdFromUrl(value) {
   return "";
 }
 
+function buildFacebookProfileProbeUrls(inputUrl) {
+  const out = [];
+  const push = (u) => {
+    const n = normalizeInputUrl(u);
+    if (n && !out.includes(n)) out.push(n);
+  };
+  push(inputUrl);
+  try {
+    const parsed = new URL(normalizeInputUrl(inputUrl));
+    const path = parsed.pathname || "/";
+    const q = parsed.search || "";
+    push(`https://www.facebook.com${path}${q}`);
+    push(`https://m.facebook.com${path}${q}`);
+    push(`https://mbasic.facebook.com${path}${q}`);
+  } catch {
+    // ignore
+  }
+  return out;
+}
+
 async function resolveFacebookProfileId(rawUrl) {
   const normalized = normalizeInputUrl(rawUrl);
   if (!normalized) throw createHttpError(400, "Vui long nhap link Facebook.");
@@ -559,36 +579,43 @@ async function resolveFacebookProfileId(rawUrl) {
   const usernameMatch = pathname.match(/^\/([A-Za-z0-9.]{3,})(?:\/|$)/);
   const username = usernameMatch ? usernameMatch[1] : "";
 
-  const scrapingBeeResult = await fetchFacebookHtmlViaScrapingBee(normalized).catch(() => null);
-  const proxyList = scrapingBeeResult ? [] : await getPublicHttpProxyList();
-  const candidates = [];
-  if (scrapingBeeResult) {
-    candidates.push("__SCRAPINGBEE__");
-  }
-  if (proxyList.length > 0) {
-    const randomStart = Math.floor(Math.random() * proxyList.length);
-    for (let i = 0; i < Math.min(6, proxyList.length); i += 1) {
-      const idx = (randomStart + i) % proxyList.length;
-      candidates.push(proxyList[idx]);
-    }
-  }
-  candidates.push(""); // fallback direct
+  const urlProbes = buildFacebookProfileProbeUrls(normalized);
 
   let html = "";
   let finalUrl = normalized;
   let lastError = null;
-  for (const proxy of candidates) {
-    try {
-      const fetched = proxy === "__SCRAPINGBEE__"
-        ? scrapingBeeResult
-        : await fetchFacebookHtmlOnce(normalized, proxy);
-      html = fetched.html;
-      finalUrl = fetched.finalUrl;
-      break;
-    } catch (error) {
-      lastError = error;
+
+  for (const probeUrl of urlProbes) {
+    const scrapingBeeResult = await fetchFacebookHtmlViaScrapingBee(probeUrl).catch(() => null);
+    const proxyList = scrapingBeeResult ? [] : await getPublicHttpProxyList();
+    const candidates = [];
+    if (scrapingBeeResult) {
+      candidates.push("__SCRAPINGBEE__");
     }
+    if (proxyList.length > 0) {
+      const randomStart = Math.floor(Math.random() * proxyList.length);
+      for (let i = 0; i < Math.min(4, proxyList.length); i += 1) {
+        const idx = (randomStart + i) % proxyList.length;
+        candidates.push(proxyList[idx]);
+      }
+    }
+    candidates.push(""); // fallback direct
+
+    for (const proxy of candidates) {
+      try {
+        const fetched = proxy === "__SCRAPINGBEE__"
+          ? scrapingBeeResult
+          : await fetchFacebookHtmlOnce(probeUrl, proxy);
+        html = fetched.html;
+        finalUrl = fetched.finalUrl;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (html) break;
   }
+
   if (!html) {
     throw createHttpError(502, lastError?.message || "Khong the lay du lieu tu Facebook (co the bi chan IP).");
   }

@@ -339,6 +339,8 @@ const fbIdForm = document.getElementById("fbid-form");
 const fbIdInput = document.getElementById("fbid-input");
 const fbIdBtn = document.getElementById("fbid-btn");
 const fbIdResult = document.getElementById("fbid-result");
+const fbIdCopyBtn = document.getElementById("fbid-copy");
+let currentFacebookId = "";
 
 if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
   fbIdForm.addEventListener("submit", async (event) => {
@@ -368,16 +370,36 @@ if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
       const id = String(payload.id || "").trim();
       const username = String(payload.username || "").trim();
       if (!id) throw new Error("Khong tim thay Facebook ID.");
+      currentFacebookId = id;
 
       fbIdResult.textContent = username
         ? `Facebook ID: ${id} (username: ${username})`
         : `Facebook ID: ${id}`;
       fbIdResult.style.color = "#22c55e";
     } catch (error) {
+      currentFacebookId = "";
       fbIdResult.textContent = error.message || "Khong truy van duoc Facebook ID.";
       fbIdResult.style.color = "#f87171";
     } finally {
       fbIdBtn.disabled = false;
+    }
+  });
+}
+
+if (fbIdCopyBtn && fbIdResult) {
+  fbIdCopyBtn.addEventListener("click", async () => {
+    if (!currentFacebookId) {
+      fbIdResult.textContent = "Chưa có Facebook ID để copy.";
+      fbIdResult.style.color = "#f87171";
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(currentFacebookId);
+      fbIdResult.textContent = `Đã copy Facebook ID: ${currentFacebookId}`;
+      fbIdResult.style.color = "#22c55e";
+    } catch {
+      fbIdResult.textContent = "Không copy được. Hãy copy thủ công.";
+      fbIdResult.style.color = "#f87171";
     }
   });
 }
@@ -409,37 +431,30 @@ function base32ToBytes(input) {
   return new Uint8Array(out);
 }
 
-function parseOtpauthSecret(input) {
-  const raw = String(input || "").trim();
+function parseAuthenticatorSecret(input) {
+  const raw = String(input || "").trim().replace(/\s+/g, "");
   if (!raw) {
-    throw new Error("Vui long nhap chuoi otpauth.");
+    throw new Error("Vui lòng nhập secret key 2FA.");
   }
-  if (!/^otpauth:\/\//i.test(raw)) {
-    throw new Error("Sai dinh dang. Hay dan dung chuoi otpauth://totp/...");
+  if (/^otpauth:\/\//i.test(raw)) {
+    try {
+      const parsed = new URL(raw);
+      const secretFromUrl = String(parsed.searchParams.get("secret") || "").trim();
+      if (!secretFromUrl) {
+        throw new Error("Chuỗi otpauth thiếu secret.");
+      }
+      if (!/^[A-Z2-7]+=*$/i.test(secretFromUrl)) {
+        throw new Error("Secret trong otpauth không đúng Base32.");
+      }
+      return secretFromUrl;
+    } catch {
+      throw new Error("Chuỗi otpauth không hợp lệ.");
+    }
   }
-
-  let parsed;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error("Chuoi otpauth khong hop le.");
+  if (!/^[A-Z2-7]+=*$/i.test(raw)) {
+    throw new Error("Secret key không đúng định dạng Base32.");
   }
-
-  const type = String(parsed.hostname || "").toLowerCase();
-  if (type !== "totp") {
-    throw new Error("Chi ho tro otpauth dang TOTP.");
-  }
-
-  const secret = String(parsed.searchParams.get("secret") || "").trim();
-  if (!secret) {
-    throw new Error("Thieu tham so secret trong chuoi otpauth.");
-  }
-
-  if (!/^[A-Z2-7]+=*$/i.test(secret)) {
-    throw new Error("Secret khong dung Base32.");
-  }
-
-  return secret;
+  return raw;
 }
 
 async function generateTotp(secret, period = 30, digits = 6) {
@@ -481,20 +496,20 @@ async function updateTotpView() {
 
   if (!secret) {
     totpCodeEl.textContent = "------";
-    totpStatusEl.textContent = "Nhap chuoi otpauth de tao ma 2FA.";
+    totpStatusEl.textContent = "Nhập secret key để tạo mã 2FA.";
     totpStatusEl.style.color = "#94a3b8";
     return;
   }
 
   try {
-    const parsedSecret = parseOtpauthSecret(secret);
+    const parsedSecret = parseAuthenticatorSecret(secret);
     const code = await generateTotp(parsedSecret);
     totpCodeEl.textContent = code;
-    totpStatusEl.textContent = "Ma 2FA dang hoat dong.";
+    totpStatusEl.textContent = "Mã 2FA đang hoạt động.";
     totpStatusEl.style.color = "#22c55e";
   } catch (error) {
     totpCodeEl.textContent = "------";
-    totpStatusEl.textContent = error.message || "Chuoi otpauth khong hop le.";
+    totpStatusEl.textContent = error.message || "Secret key không hợp lệ.";
     totpStatusEl.style.color = "#f87171";
   }
 }
@@ -510,16 +525,16 @@ if (totpSecretInput && totpCodeEl && totpTimerEl && totpCopyBtn && totpStatusEl)
   totpCopyBtn.addEventListener("click", async () => {
     const code = String(totpCodeEl.textContent || "").trim();
     if (!/^\d{6}$/.test(code)) {
-      totpStatusEl.textContent = "Chua co ma hop le de copy.";
+      totpStatusEl.textContent = "Chưa có mã hợp lệ để copy.";
       totpStatusEl.style.color = "#f87171";
       return;
     }
     try {
       await navigator.clipboard.writeText(code);
-      totpStatusEl.textContent = "Da copy ma 2FA.";
+      totpStatusEl.textContent = "Đã copy mã 2FA.";
       totpStatusEl.style.color = "#22c55e";
     } catch {
-      totpStatusEl.textContent = "Khong copy duoc. Hay copy thu cong.";
+      totpStatusEl.textContent = "Không copy được. Hãy copy thủ công.";
       totpStatusEl.style.color = "#f87171";
     }
   });

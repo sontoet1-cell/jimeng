@@ -203,20 +203,20 @@
 
     <section class="w-full max-w-6xl pt-6 border-t border-white/10">
       <h3 class="text-center text-3xl font-extrabold text-white mb-8 tracking-tight uppercase">TIỆN ÍCH MỞ RỘNG</h3>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <a href="https://tts.tienich.pro/" target="_blank" class="ext-card p-5 text-center">
+      <div class="flex flex-wrap justify-center gap-4">
+        <a href="https://tts.tienich.pro/" target="_blank" class="ext-card p-5 text-center w-[180px]">
           <i class="fas fa-volume-high text-4xl text-green-400 mb-3"></i>
           <p class="text-slate-200 font-semibold text-sm">Text to Speech</p>
         </a>
-        <a href="https://nano.anhdep.info/" target="_blank" class="ext-card p-5 text-center">
+        <a href="https://nano.anhdep.info/" target="_blank" class="ext-card p-5 text-center w-[180px]">
           <i class="fas fa-pen text-4xl text-pink-400 mb-3"></i>
           <p class="text-slate-200 font-semibold text-sm">AI Photo Editor</p>
         </a>
-        <a href="https://xemtuong.tienich.pro/" target="_blank" class="ext-card p-5 text-center">
+        <a href="https://xemtuong.tienich.pro/" target="_blank" class="ext-card p-5 text-center w-[180px]">
           <i class="fas fa-eye text-4xl text-orange-400 mb-3"></i>
           <p class="text-slate-200 font-semibold text-sm">Xem Tướng Online</p>
         </a>
-        <a href="https://chuinhau.xyz/" target="_blank" class="ext-card p-5 text-center">
+        <a href="https://chuinhau.xyz/" target="_blank" class="ext-card p-5 text-center w-[180px]">
           <i class="fas fa-fire-flame-curved text-4xl text-red-500 mb-3"></i>
           <p class="text-slate-200 font-semibold text-sm">Cãi Nhau Thuê</p>
         </a>
@@ -244,27 +244,34 @@
             </button>
           </form>
           <p id="fbid-result" class="mt-3 text-sm text-slate-300 min-h-[20px]"></p>
+          <button
+            id="fbid-copy"
+            type="button"
+            class="w-full h-11 mt-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold hover:opacity-90 transition"
+          >
+            Copy Facebook ID
+          </button>
         </div>
 
         <div class="ext-card p-5">
           <div class="flex items-center gap-3 mb-4">
             <i class="fas fa-shield-halved text-yellow-400 text-xl"></i>
-            <h4 class="text-white font-bold text-lg">Ma 2FA Truc Tiep</h4>
+            <h4 class="text-white font-bold text-lg">Mã 2FA Trực Tiếp</h4>
           </div>
           <div class="space-y-3">
             <input
               id="totp-secret"
               type="text"
-              placeholder="Dan chuoi otpauth://totp/...?...secret=..."
+              placeholder="Nhập secret key Google Authenticator (Base32)..."
               class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none"
             />
             <div class="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl px-4 py-3">
               <div>
-                <p class="text-slate-400 text-xs">Ma hien tai</p>
+                <p class="text-slate-400 text-xs">Mã hiện tại</p>
                 <p id="totp-code" class="text-2xl font-extrabold tracking-[0.2em] text-green-400">------</p>
               </div>
               <div class="text-right">
-                <p class="text-slate-400 text-xs">Lam moi sau</p>
+                <p class="text-slate-400 text-xs">Làm mới sau</p>
                 <p id="totp-timer" class="text-lg font-bold text-white">--s</p>
               </div>
             </div>
@@ -273,7 +280,7 @@
               type="button"
               class="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold hover:opacity-90 transition"
             >
-              Copy Ma 2FA
+              Copy Mã 2FA
             </button>
             <p id="totp-status" class="text-sm text-slate-300 min-h-[20px]"></p>
           </div>

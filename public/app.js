@@ -334,3 +334,160 @@ form.addEventListener("submit", async (event) => {
     submitBtn.disabled = false;
   }
 });
+
+const fbIdForm = document.getElementById("fbid-form");
+const fbIdInput = document.getElementById("fbid-input");
+const fbIdBtn = document.getElementById("fbid-btn");
+const fbIdResult = document.getElementById("fbid-result");
+
+if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
+  fbIdForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const url = String(fbIdInput.value || "").trim();
+    if (!url) {
+      fbIdResult.textContent = "Vui long nhap link Facebook.";
+      fbIdResult.style.color = "#f87171";
+      return;
+    }
+
+    fbIdBtn.disabled = true;
+    fbIdResult.textContent = "Dang truy van Facebook ID...";
+    fbIdResult.style.color = "#facc15";
+
+    try {
+      const response = await fetch("/api/facebook-id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${payload?.error || "Khong truy van duoc Facebook ID."}`);
+      }
+
+      const id = String(payload.id || "").trim();
+      const username = String(payload.username || "").trim();
+      if (!id) throw new Error("Khong tim thay Facebook ID.");
+
+      fbIdResult.textContent = username
+        ? `Facebook ID: ${id} (username: ${username})`
+        : `Facebook ID: ${id}`;
+      fbIdResult.style.color = "#22c55e";
+    } catch (error) {
+      fbIdResult.textContent = error.message || "Khong truy van duoc Facebook ID.";
+      fbIdResult.style.color = "#f87171";
+    } finally {
+      fbIdBtn.disabled = false;
+    }
+  });
+}
+
+const totpSecretInput = document.getElementById("totp-secret");
+const totpCodeEl = document.getElementById("totp-code");
+const totpTimerEl = document.getElementById("totp-timer");
+const totpCopyBtn = document.getElementById("totp-copy");
+const totpStatusEl = document.getElementById("totp-status");
+
+function base32ToBytes(input) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const clean = String(input || "").toUpperCase().replace(/[^A-Z2-7]/g, "");
+  if (!clean) return new Uint8Array();
+
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (let i = 0; i < clean.length; i += 1) {
+    const idx = alphabet.indexOf(clean[i]);
+    if (idx < 0) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(out);
+}
+
+async function generateTotp(secret, period = 30, digits = 6) {
+  const keyBytes = base32ToBytes(secret);
+  if (!keyBytes.length) throw new Error("Secret key khong hop le.");
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const counter = Math.floor(epoch / period);
+  const counterBuf = new ArrayBuffer(8);
+  const view = new DataView(counterBuf);
+  view.setUint32(0, Math.floor(counter / 0x100000000), false);
+  view.setUint32(4, counter >>> 0, false);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    keyBytes,
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, counterBuf);
+  const hmac = new Uint8Array(sig);
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const codeInt = (
+    ((hmac[offset] & 0x7f) << 24)
+    | ((hmac[offset + 1] & 0xff) << 16)
+    | ((hmac[offset + 2] & 0xff) << 8)
+    | (hmac[offset + 3] & 0xff)
+  ) % (10 ** digits);
+
+  return String(codeInt).padStart(digits, "0");
+}
+
+async function updateTotpView() {
+  if (!totpSecretInput || !totpCodeEl || !totpTimerEl || !totpStatusEl) return;
+  const secret = String(totpSecretInput.value || "").trim();
+  const remain = 30 - (Math.floor(Date.now() / 1000) % 30);
+  totpTimerEl.textContent = `${remain}s`;
+
+  if (!secret) {
+    totpCodeEl.textContent = "------";
+    totpStatusEl.textContent = "Nhap secret key de tao ma 2FA.";
+    totpStatusEl.style.color = "#94a3b8";
+    return;
+  }
+
+  try {
+    const code = await generateTotp(secret);
+    totpCodeEl.textContent = code;
+    totpStatusEl.textContent = "Ma 2FA dang hoat dong.";
+    totpStatusEl.style.color = "#22c55e";
+  } catch (error) {
+    totpCodeEl.textContent = "------";
+    totpStatusEl.textContent = error.message || "Secret key khong hop le.";
+    totpStatusEl.style.color = "#f87171";
+  }
+}
+
+if (totpSecretInput && totpCodeEl && totpTimerEl && totpCopyBtn && totpStatusEl) {
+  let ticking = null;
+  const startTicking = () => {
+    if (ticking) clearInterval(ticking);
+    updateTotpView();
+    ticking = setInterval(updateTotpView, 1000);
+  };
+  totpSecretInput.addEventListener("input", startTicking);
+  totpCopyBtn.addEventListener("click", async () => {
+    const code = String(totpCodeEl.textContent || "").trim();
+    if (!/^\d{6}$/.test(code)) {
+      totpStatusEl.textContent = "Chua co ma hop le de copy.";
+      totpStatusEl.style.color = "#f87171";
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(code);
+      totpStatusEl.textContent = "Da copy ma 2FA.";
+      totpStatusEl.style.color = "#22c55e";
+    } catch {
+      totpStatusEl.textContent = "Khong copy duoc. Hay copy thu cong.";
+      totpStatusEl.style.color = "#f87171";
+    }
+  });
+  startTicking();
+}

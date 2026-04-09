@@ -142,14 +142,24 @@ function appendYtDlpGlobalArgs(baseArgs) {
   return out;
 }
 
-function buildYtDlpResolveArgs(url, platformHint = "unknown") {
+function buildYtDlpResolveArgs(url, platformHint = "unknown", youtubeProfile = "default") {
   let args = [
     "--dump-single-json",
     "--no-warnings",
-    "--no-playlist"
+    "--no-playlist",
+    "--geo-bypass",
+    "--geo-bypass-country", "US"
   ];
   if (platformHint === "youtube") {
-    args.push("--extractor-args", "youtube:player_client=android,web");
+    if (youtubeProfile === "default") {
+      args.push("--extractor-args", "youtube:player_client=android,web");
+    } else if (youtubeProfile === "mobile") {
+      args.push("--extractor-args", "youtube:player_client=android,ios,mweb");
+    } else if (youtubeProfile === "tv") {
+      args.push("--extractor-args", "youtube:player_client=tv,web_safari");
+    } else if (youtubeProfile === "skipweb") {
+      args.push("--extractor-args", "youtube:player_skip=webpage,configs;player_client=android,ios");
+    }
   }
   args.push(url);
   args = appendYtDlpGlobalArgs(args);
@@ -399,6 +409,94 @@ function isSupportedUrl(value) {
   return detectPlatform(value) !== "unknown";
 }
 
+function isFacebookHost(host) {
+  const h = String(host || "").toLowerCase();
+  return h === "facebook.com" || h.endsWith(".facebook.com") || h === "fb.com" || h.endsWith(".fb.com");
+}
+
+function extractFacebookIdFromUrl(value) {
+  try {
+    const parsed = new URL(normalizeInputUrl(value));
+    if (!isFacebookHost(parsed.hostname)) return "";
+    const idFromQuery = parsed.searchParams.get("id") || parsed.searchParams.get("story_fbid") || parsed.searchParams.get("fbid") || "";
+    if (/^\d{5,}$/.test(idFromQuery)) return idFromQuery;
+    const path = parsed.pathname || "";
+    const pathId = path.match(/\/(?:profile\.php\/?)?(\d{5,})(?:\/|$)/i);
+    if (pathId) return pathId[1];
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+async function resolveFacebookProfileId(rawUrl) {
+  const normalized = normalizeInputUrl(rawUrl);
+  if (!normalized) throw createHttpError(400, "Vui long nhap link Facebook.");
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw createHttpError(400, "Link Facebook khong hop le.");
+  }
+
+  if (!isFacebookHost(parsed.hostname)) {
+    throw createHttpError(400, "Link nay khong phai Facebook.");
+  }
+
+  const directId = extractFacebookIdFromUrl(normalized);
+  if (directId) {
+    return { id: directId, profile_url: normalized, source: "url" };
+  }
+
+  const pathname = String(parsed.pathname || "/");
+  const usernameMatch = pathname.match(/^\/([A-Za-z0-9.]{3,})(?:\/|$)/);
+  const username = usernameMatch ? usernameMatch[1] : "";
+
+  const response = await fetch(normalized, {
+    method: "GET",
+    redirect: "follow",
+    headers: {
+      ...DEFAULT_HEADERS,
+      Referer: "https://www.facebook.com/"
+    }
+  });
+
+  if (!response.ok) {
+    throw createHttpError(502, `Facebook tra ve HTTP ${response.status}.`);
+  }
+
+  const html = await response.text();
+  const patterns = [
+    /"entity_id":"(\d{5,})"/i,
+    /"userID":"(\d{5,})"/i,
+    /"user_id":"(\d{5,})"/i,
+    /"profile_id":"(\d{5,})"/i,
+    /"actorID":"(\d{5,})"/i,
+    /profile_id=(\d{5,})/i,
+    /fb:\/\/profile\/(\d{5,})/i,
+    /owner_id["']?\s*:\s*["']?(\d{5,})/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) {
+      return {
+        id: match[1],
+        username: username || "",
+        profile_url: response.url || normalized,
+        source: "html"
+      };
+    }
+  }
+
+  if (username) {
+    throw createHttpError(404, `Khong trich xuat duoc ID so. Username phat hien: ${username}`);
+  }
+
+  throw createHttpError(404, "Khong trich xuat duoc Facebook ID tu link nay.");
+}
+
 function isLikelyTikTokVideoUrl(value) {
   try {
     const parsed = new URL(normalizeInputUrl(value));
@@ -562,6 +660,41 @@ function extractVideoId(url) {
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match) return match[1];
+  }
+  return "";
+}
+
+function extractYouTubeVideoId(url) {
+  const normalized = normalizeInputUrl(url);
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    const pathName = parsed.pathname || "";
+
+    if (host === "youtu.be") {
+      const id = pathName.replace(/^\/+/, "").split("/")[0];
+      if (/^[A-Za-z0-9_-]{6,15}$/.test(id)) return id;
+    }
+    if (host.endsWith("youtube.com")) {
+      if (pathName === "/watch") {
+        const id = parsed.searchParams.get("v") || "";
+        if (/^[A-Za-z0-9_-]{6,15}$/.test(id)) return id;
+      }
+      const shortMatch = pathName.match(/^\/(?:shorts|embed|live)\/([A-Za-z0-9_-]{6,15})/i);
+      if (shortMatch) return shortMatch[1];
+    }
+  } catch {
+    // Ignore URL parse errors and try regex fallback.
+  }
+
+  const regexes = [
+    /[?&]v=([A-Za-z0-9_-]{6,15})/,
+    /youtu\.be\/([A-Za-z0-9_-]{6,15})/i,
+    /\/shorts\/([A-Za-z0-9_-]{6,15})/i
+  ];
+  for (const rx of regexes) {
+    const m = String(url || "").match(rx);
+    if (m) return m[1];
   }
   return "";
 }
@@ -1504,24 +1637,153 @@ async function downloadViaYtDlpToFile(pageUrl, outputPath) {
 async function resolveViaYtDlp(url, platformHint = "unknown") {
   if (!ytDlpCommand) return null;
 
-  const args = buildYtDlpResolveArgs(url, platformHint);
+  const youtubeProfiles = platformHint === "youtube"
+    ? ["default", "mobile", "tv", "skipweb"]
+    : ["default"];
+  let lastError = null;
 
-  const { stdout } = await runCommandCapture(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args]);
-  let info = {};
-  try {
-    info = JSON.parse(stdout || "{}");
-  } catch {
-    throw createHttpError(502, "yt-dlp tra ve JSON khong hop le.");
+  for (const profile of youtubeProfiles) {
+    try {
+      const args = buildYtDlpResolveArgs(url, platformHint, profile);
+      const { stdout } = await runCommandCapture(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args]);
+      let info = {};
+      try {
+        info = JSON.parse(stdout || "{}");
+      } catch {
+        throw createHttpError(502, "yt-dlp tra ve JSON khong hop le.");
+      }
+      const qualities = buildQualitiesFromYtDlpInfo(info);
+      if (!qualities.length) continue;
+
+      return normalizeVideoResult({
+        item_id: String(info?.id || extractVideoId(url) || ""),
+        title: String(info?.title || ""),
+        cover_url: String(info?.thumbnail || ""),
+        qualities
+      }, url);
+    } catch (error) {
+      lastError = error;
+      if (platformHint === "youtube") {
+        await sleep(500);
+      }
+    }
   }
-  const qualities = buildQualitiesFromYtDlpInfo(info);
-  if (!qualities.length) return null;
+  if (lastError) throw lastError;
+  return null;
+}
 
-  return normalizeVideoResult({
-    item_id: String(info?.id || extractVideoId(url) || ""),
-    title: String(info?.title || ""),
-    cover_url: String(info?.thumbnail || ""),
-    qualities
-  }, url);
+async function resolveYouTubeViaInnertube(url) {
+  const videoId = extractYouTubeVideoId(url);
+  if (!videoId) return null;
+
+  const apiKey = String(process.env.YT_INNERTUBE_KEY || "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8");
+  const endpoint = `https://www.youtube.com/youtubei/v1/player?key=${encodeURIComponent(apiKey)}`;
+  const clients = [
+    {
+      name: "ANDROID",
+      version: "19.44.38",
+      ua: "com.google.android.youtube/19.44.38 (Linux; U; Android 11) gzip",
+      extra: { androidSdkVersion: 30 }
+    },
+    {
+      name: "IOS",
+      version: "19.45.4",
+      ua: "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_0 like Mac OS X)",
+      extra: { deviceModel: "iPhone16,2", osName: "iOS", osVersion: "18.0" }
+    }
+  ];
+
+  let lastError = null;
+  for (const client of clients) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": client.ua,
+          "Accept-Language": "en-US,en;q=0.9",
+          Origin: "https://www.youtube.com",
+          Referer: "https://www.youtube.com/"
+        },
+        body: JSON.stringify({
+          context: {
+            client: {
+              clientName: client.name,
+              clientVersion: client.version,
+              hl: "en",
+              gl: "US",
+              utcOffsetMinutes: -420,
+              ...client.extra
+            }
+          },
+          videoId,
+          contentCheckOk: true,
+          racyCheckOk: true
+        })
+      });
+      if (!response.ok) {
+        lastError = createHttpError(502, `YouTube innertube tra ve HTTP ${response.status}.`);
+        continue;
+      }
+
+      const json = await response.json().catch(() => null);
+      const stream = json?.streamingData || {};
+      const formats = [
+        ...(Array.isArray(stream.formats) ? stream.formats : []),
+        ...(Array.isArray(stream.adaptiveFormats) ? stream.adaptiveFormats : [])
+      ];
+      if (!formats.length) {
+        lastError = createHttpError(502, "YouTube innertube khong co streamingData.");
+        continue;
+      }
+
+      const audioTracks = formats
+        .filter((f) => typeof f?.url === "string" && /^audio\//i.test(String(f?.mimeType || "")))
+        .sort((a, b) => (Number(b?.bitrate) || 0) - (Number(a?.bitrate) || 0));
+      const bestAudio = audioTracks[0] || null;
+
+      const videoTracks = formats
+        .filter((f) => typeof f?.url === "string" && /^video\//i.test(String(f?.mimeType || "")))
+        .map((f) => {
+          const mime = String(f?.mimeType || "").toLowerCase();
+          const hasAudio = /mp4a|opus|vorbis/.test(mime);
+          const height = Number(f?.height) || detectQualityNumber(f?.qualityLabel) || 0;
+          const qualityLabel = String(f?.qualityLabel || (height ? `${height}p` : "yt"));
+          return {
+            label: `Innertube ${qualityLabel}`,
+            quality: qualityLabel,
+            url: f.url,
+            width: Number(f?.width) || 0,
+            height,
+            fps: Number(f?.fps) || 0,
+            has_audio: hasAudio,
+            audio_url: hasAudio ? "" : (bestAudio?.url || ""),
+            watermark_status: "unknown"
+          };
+        });
+
+      if (!videoTracks.length) {
+        lastError = createHttpError(502, "YouTube innertube khong co video stream hop le.");
+        continue;
+      }
+
+      return normalizeVideoResult({
+        item_id: videoId,
+        title: String(json?.videoDetails?.title || ""),
+        cover_url: String(
+          (Array.isArray(json?.videoDetails?.thumbnail?.thumbnails)
+            ? json.videoDetails.thumbnail.thumbnails[json.videoDetails.thumbnail.thumbnails.length - 1]?.url
+            : "") || ""
+        ),
+        qualities: videoTracks
+      }, url);
+    } catch (error) {
+      lastError = normalizeProcessError(error, "Khong the lay stream YouTube qua innertube.");
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
 }
 
 async function resolveFacebookVideo(url) {
@@ -1617,6 +1879,19 @@ async function resolveVideoByPlatform(url) {
 
   if (platform === "youtube") {
     try {
+      const innertube = await resolveYouTubeViaInnertube(normalized);
+      if (innertube?.qualities?.length) {
+        return postProcessByPlatform({
+          ...innertube,
+          source_page_url: normalized,
+          resolver: "youtube_innertube",
+          platform
+        }, platform);
+      }
+    } catch (error) {
+      lastError = normalizeProcessError(error, "Khong the doc du lieu YouTube bang innertube.");
+    }
+    try {
       const ytdlpFirst = await resolveViaYtDlp(normalized, "youtube");
       if (ytdlpFirst?.qualities?.length) {
         return postProcessByPlatform({
@@ -1630,7 +1905,13 @@ async function resolveVideoByPlatform(url) {
       lastError = normalizeProcessError(error, "Khong the doc du lieu YouTube bang yt-dlp.");
     }
     if (lastError) {
-      throw createHttpError(Number(lastError.statusCode) || 502, lastError.message || "Khong the tai video YouTube luc nay.");
+      const baseMessage = String(lastError.message || "Khong the tai video YouTube luc nay.");
+      if ((baseMessage.toLowerCase().includes("xac minh bot") || baseMessage.toLowerCase().includes("stream youtube"))
+        && !YTDLP_PROXY
+        && !ensureYtDlpCookiesFile()) {
+        throw createHttpError(502, `${baseMessage} (Can cau hinh YTDLP_PROXY hoac YTDLP_COOKIES_B64 tren Render).`);
+      }
+      throw createHttpError(Number(lastError.statusCode) || 502, baseMessage);
     }
     throw createHttpError(502, "Khong tim thay stream YouTube hop le.");
   }
@@ -2009,6 +2290,22 @@ const server = http.createServer(async (req, res) => {
         : sanitizeClientErrorMessage(error.message || "Khong the xu ly link nay luc nay.");
       const statusCode = Number(error?.statusCode) || 500;
       sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, { error: message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/facebook-id") {
+    try {
+      const rawBody = await readRequestBody(req);
+      const body = rawBody ? JSON.parse(rawBody) : {};
+      const url = normalizeInputUrl(typeof body.url === "string" ? body.url : "");
+      const result = await resolveFacebookProfileId(url);
+      sendJson(res, 200, result);
+    } catch (error) {
+      const statusCode = Number(error?.statusCode) || 500;
+      sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, {
+        error: sanitizeClientErrorMessage(error.message || "Khong the truy van Facebook ID.")
+      });
     }
     return;
   }

@@ -212,14 +212,6 @@
           <i class="fas fa-pen text-4xl text-pink-400 mb-3"></i>
           <p class="text-slate-200 font-semibold text-sm">AI Photo Editor</p>
         </a>
-        <a href="https://cainhau.tienich.pro/2fa" target="_blank" class="ext-card p-5 text-center">
-          <i class="fas fa-shield-halved text-4xl text-yellow-400 mb-3"></i>
-          <p class="text-slate-200 font-semibold text-sm">2FA Live Code</p>
-        </a>
-        <a href="https://son.page.gd/" target="_blank" class="ext-card p-5 text-center">
-          <i class="fas fa-id-card text-4xl text-blue-400 mb-3"></i>
-          <p class="text-slate-200 font-semibold text-sm">Get Facebook ID</p>
-        </a>
         <a href="https://xemtuong.tienich.pro/" target="_blank" class="ext-card p-5 text-center">
           <i class="fas fa-eye text-4xl text-orange-400 mb-3"></i>
           <p class="text-slate-200 font-semibold text-sm">Xem Tướng Online</p>
@@ -257,22 +249,22 @@
         <div class="ext-card p-5">
           <div class="flex items-center gap-3 mb-4">
             <i class="fas fa-shield-halved text-yellow-400 text-xl"></i>
-            <h4 class="text-white font-bold text-lg">2FA Live Code</h4>
+            <h4 class="text-white font-bold text-lg">Ma 2FA Truc Tiep</h4>
           </div>
           <div class="space-y-3">
             <input
               id="totp-secret"
               type="text"
-              placeholder="Nhập secret key 2FA (Base32)..."
+              placeholder="Dan chuoi otpauth://totp/...?...secret=..."
               class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none"
             />
             <div class="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl px-4 py-3">
               <div>
-                <p class="text-slate-400 text-xs">Mã hiện tại</p>
+                <p class="text-slate-400 text-xs">Ma hien tai</p>
                 <p id="totp-code" class="text-2xl font-extrabold tracking-[0.2em] text-green-400">------</p>
               </div>
               <div class="text-right">
-                <p class="text-slate-400 text-xs">Làm mới sau</p>
+                <p class="text-slate-400 text-xs">Lam moi sau</p>
                 <p id="totp-timer" class="text-lg font-bold text-white">--s</p>
               </div>
             </div>
@@ -281,7 +273,7 @@
               type="button"
               class="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold hover:opacity-90 transition"
             >
-              Copy Mã 2FA
+              Copy Ma 2FA
             </button>
             <p id="totp-status" class="text-sm text-slate-300 min-h-[20px]"></p>
           </div>

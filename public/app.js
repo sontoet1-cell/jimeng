@@ -409,6 +409,39 @@ function base32ToBytes(input) {
   return new Uint8Array(out);
 }
 
+function parseOtpauthSecret(input) {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    throw new Error("Vui long nhap chuoi otpauth.");
+  }
+  if (!/^otpauth:\/\//i.test(raw)) {
+    throw new Error("Sai dinh dang. Hay dan dung chuoi otpauth://totp/...");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("Chuoi otpauth khong hop le.");
+  }
+
+  const type = String(parsed.hostname || "").toLowerCase();
+  if (type !== "totp") {
+    throw new Error("Chi ho tro otpauth dang TOTP.");
+  }
+
+  const secret = String(parsed.searchParams.get("secret") || "").trim();
+  if (!secret) {
+    throw new Error("Thieu tham so secret trong chuoi otpauth.");
+  }
+
+  if (!/^[A-Z2-7]+=*$/i.test(secret)) {
+    throw new Error("Secret khong dung Base32.");
+  }
+
+  return secret;
+}
+
 async function generateTotp(secret, period = 30, digits = 6) {
   const keyBytes = base32ToBytes(secret);
   if (!keyBytes.length) throw new Error("Secret key khong hop le.");
@@ -448,19 +481,20 @@ async function updateTotpView() {
 
   if (!secret) {
     totpCodeEl.textContent = "------";
-    totpStatusEl.textContent = "Nhap secret key de tao ma 2FA.";
+    totpStatusEl.textContent = "Nhap chuoi otpauth de tao ma 2FA.";
     totpStatusEl.style.color = "#94a3b8";
     return;
   }
 
   try {
-    const code = await generateTotp(secret);
+    const parsedSecret = parseOtpauthSecret(secret);
+    const code = await generateTotp(parsedSecret);
     totpCodeEl.textContent = code;
     totpStatusEl.textContent = "Ma 2FA dang hoat dong.";
     totpStatusEl.style.color = "#22c55e";
   } catch (error) {
     totpCodeEl.textContent = "------";
-    totpStatusEl.textContent = error.message || "Secret key khong hop le.";
+    totpStatusEl.textContent = error.message || "Chuoi otpauth khong hop le.";
     totpStatusEl.style.color = "#f87171";
   }
 }

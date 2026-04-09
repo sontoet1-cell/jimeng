@@ -22,6 +22,9 @@ const YTDLP_COOKIES_FILE = String(process.env.YTDLP_COOKIES_FILE || "").trim();
 const YTDLP_COOKIES_B64 = String(process.env.YTDLP_COOKIES_B64 || "").trim();
 const TIKWM_API_BASE = String(process.env.TIKWM_API_BASE || "https://www.tikwm.com").trim().replace(/\/+$/, "");
 const SCRAPINGBEE_API_KEY = String(process.env.SCRAPINGBEE_API_KEY || "").trim();
+const PROXYXOAY_KEY = String(process.env.PROXYXOAY_KEY || "").trim();
+const PROXYXOAY_API_BASE = String(process.env.PROXYXOAY_API_BASE || "https://proxyxoay.shop").trim().replace(/\/+$/, "");
+const PROXYXOAY_CACHE_MS = Math.max(10000, Number(process.env.PROXYXOAY_CACHE_MS || 45000));
 
 const resolveCache = new Map();
 const inFlightResolves = new Map();
@@ -142,14 +145,93 @@ function ensureYtDlpCookiesFile() {
 }
 
 function appendYtDlpGlobalArgs(baseArgs) {
+  return [...baseArgs];
+}
+
+let rotatingProxyCache = {
+  proxyUrl: "",
+  expiresAt: 0
+};
+
+function buildProxyUrlFromRaw(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const parts = value.split(":");
+  if (parts.length >= 4) {
+    const host = parts[0] || "";
+    const port = parts[1] || "";
+    const user = parts[2] || "";
+    const pass = parts.slice(3).join(":") || "";
+    if (host && port && user && pass) {
+      return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+    }
+    if (host && port) {
+      return `http://${host}:${port}`;
+    }
+  }
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return `http://${parts[0]}:${parts[1]}`;
+  }
+  return "";
+}
+
+async function fetchProxyFromProxyXoay() {
+  if (!PROXYXOAY_KEY) return "";
+  const endpoint = new URL(`${PROXYXOAY_API_BASE}/api/get.php`);
+  endpoint.searchParams.set("key", PROXYXOAY_KEY);
+  endpoint.searchParams.set("nhamang", "random");
+  endpoint.searchParams.set("tinhthanh", "0");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(endpoint.toString(), {
+      method: "GET",
+      headers: {
+        ...DEFAULT_HEADERS
+      },
+      signal: controller.signal
+    });
+    if (!response.ok) return "";
+    const json = await response.json().catch(() => null);
+    if (!json || Number(json.status) !== 100) return "";
+    const rawProxy = String(json.proxyhttp || json.proxysocks || "").trim();
+    return buildProxyUrlFromRaw(rawProxy);
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getEffectiveYtDlpProxy() {
+  if (PROXYXOAY_KEY) {
+    if (rotatingProxyCache.proxyUrl && Date.now() < rotatingProxyCache.expiresAt) {
+      return rotatingProxyCache.proxyUrl;
+    }
+    const fresh = await fetchProxyFromProxyXoay();
+    if (fresh) {
+      rotatingProxyCache = {
+        proxyUrl: fresh,
+        expiresAt: Date.now() + PROXYXOAY_CACHE_MS
+      };
+      return fresh;
+    }
+  }
+  return YTDLP_PROXY || "";
+}
+
+async function appendYtDlpGlobalArgsAsync(baseArgs) {
   const out = [...baseArgs];
   const cookiesFile = ensureYtDlpCookiesFile();
   if (cookiesFile) out.push("--cookies", cookiesFile);
-  if (YTDLP_PROXY) out.push("--proxy", YTDLP_PROXY);
+  const proxy = await getEffectiveYtDlpProxy();
+  if (proxy) out.push("--proxy", proxy);
   return out;
 }
 
-function buildYtDlpResolveArgs(url, platformHint = "unknown", youtubeProfile = "default") {
+async function buildYtDlpResolveArgs(url, platformHint = "unknown", youtubeProfile = "default") {
   let args = [
     "--dump-single-json",
     "--no-warnings",
@@ -169,7 +251,7 @@ function buildYtDlpResolveArgs(url, platformHint = "unknown", youtubeProfile = "
     }
   }
   args.push(url);
-  args = appendYtDlpGlobalArgs(args);
+  args = await appendYtDlpGlobalArgsAsync(args);
   return args;
 }
 
@@ -1762,34 +1844,38 @@ async function downloadViaYtDlpToFile(pageUrl, outputPath) {
   }
 
   await new Promise((resolve, reject) => {
-    const args = appendYtDlpGlobalArgs([
+    const baseArgs = [
       "--no-warnings",
       "--no-playlist",
       "-f", "best[ext=mp4]/best",
       "-o", outputPath,
       pageUrl
-    ]);
-    const proc = spawn(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args], {
-      windowsHide: true,
-      env: {
-        ...process.env,
-        TMP: isolatedTempDir,
-        TEMP: isolatedTempDir
-      }
-    });
-    let stderr = "";
-    proc.stderr.on("data", (chunk) => {
-      stderr += String(chunk || "");
-    });
-    proc.on("error", (error) => reject(normalizeProcessError(error, "Khong chay duoc yt-dlp.")));
-    proc.on("close", (code) => {
-      fs.promises.rm(isolatedTempDir, { recursive: true, force: true }).catch(() => {});
-      if (code === 0) resolve();
-      else {
-        const userMessage = summarizeYtDlpError(stderr, "tai video");
-        if (stderr) console.warn(`[yt-dlp] download failed (code ${code}): ${stderr.slice(-500)}`);
-        reject(createHttpError(502, userMessage));
-      }
+    ];
+    appendYtDlpGlobalArgsAsync(baseArgs).then((args) => {
+      const proc = spawn(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args], {
+        windowsHide: true,
+        env: {
+          ...process.env,
+          TMP: isolatedTempDir,
+          TEMP: isolatedTempDir
+        }
+      });
+      let stderr = "";
+      proc.stderr.on("data", (chunk) => {
+        stderr += String(chunk || "");
+      });
+      proc.on("error", (error) => reject(normalizeProcessError(error, "Khong chay duoc yt-dlp.")));
+      proc.on("close", (code) => {
+        fs.promises.rm(isolatedTempDir, { recursive: true, force: true }).catch(() => {});
+        if (code === 0) resolve();
+        else {
+          const userMessage = summarizeYtDlpError(stderr, "tai video");
+          if (stderr) console.warn(`[yt-dlp] download failed (code ${code}): ${stderr.slice(-500)}`);
+          reject(createHttpError(502, userMessage));
+        }
+      });
+    }).catch((error) => {
+      reject(normalizeProcessError(error, "Khong the khoi tao proxy cho yt-dlp."));
     });
   });
 }
@@ -1804,7 +1890,7 @@ async function resolveViaYtDlp(url, platformHint = "unknown") {
 
   for (const profile of youtubeProfiles) {
     try {
-      const args = buildYtDlpResolveArgs(url, platformHint, profile);
+      const args = await buildYtDlpResolveArgs(url, platformHint, profile);
       const { stdout } = await runCommandCapture(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args]);
       let info = {};
       try {
@@ -2068,8 +2154,9 @@ async function resolveVideoByPlatform(url) {
       const baseMessage = String(lastError.message || "Khong the tai video YouTube luc nay.");
       if ((baseMessage.toLowerCase().includes("xac minh bot") || baseMessage.toLowerCase().includes("stream youtube"))
         && !YTDLP_PROXY
+        && !PROXYXOAY_KEY
         && !ensureYtDlpCookiesFile()) {
-        throw createHttpError(502, `${baseMessage} (Can cau hinh YTDLP_PROXY hoac YTDLP_COOKIES_B64 tren Render).`);
+        throw createHttpError(502, `${baseMessage} (Can cau hinh YTDLP_PROXY/PROXYXOAY_KEY hoac YTDLP_COOKIES_B64 tren Render).`);
       }
       throw createHttpError(Number(lastError.statusCode) || 502, baseMessage);
     }
@@ -2728,7 +2815,7 @@ server.listen(PORT, () => {
   }
   console.log(`[boot] yt-dlp=${ytDlpCommand ? `${ytDlpCommand.executable}${ytDlpCommand.mode === "python_module" ? " (python -m yt_dlp)" : ""}` : "(not found)"}`);
   console.log(`[boot] yt-dlp-version=${getYtDlpVersionText()}`);
-  console.log(`[boot] yt-dlp-proxy=${YTDLP_PROXY ? "on" : "off"}`);
+  console.log(`[boot] yt-dlp-proxy=${PROXYXOAY_KEY ? "proxyxoay" : (YTDLP_PROXY ? "static" : "off")}`);
   console.log(`[boot] yt-dlp-cookies=${ensureYtDlpCookiesFile() ? "on" : "off"}`);
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);

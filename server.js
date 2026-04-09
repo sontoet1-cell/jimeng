@@ -2241,27 +2241,6 @@ async function resolveVideoByPlatform(url) {
   }
 
   try {
-    const sora = await resolveViaSora(normalizedForResolver, platform);
-    if (sora?.qualities?.length) {
-      return postProcessByPlatform({
-        ...sora,
-        source_page_url: normalizedForResolver,
-        resolver: "sora2dl",
-        platform
-      }, platform);
-    }
-  } catch (error) {
-    const normalizedError = normalizeProcessError(error, "Khong the lay du lieu tu sora2dl.");
-    if (!lastError) {
-      if (/sora2dl tra ve http 404/i.test(String(normalizedError?.message || ""))) {
-        lastError = createHttpError(502, `API ${platformDisplayName(platform)} tam thoi loi/qua tai, vui long thu lai sau.`);
-      } else {
-        lastError = normalizedError;
-      }
-    }
-  }
-
-  try {
     const ytdlp = await resolveViaYtDlp(normalizedForResolver, platform);
     if (ytdlp?.qualities?.length) {
       return postProcessByPlatform({

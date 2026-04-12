@@ -79,7 +79,7 @@ function normalizeSupportedInput(rawInput) {
   const trimmed = String(rawInput || "").trim().replace(/^["']|["']$/g, "");
   if (!trimmed) return "";
 
-  const extracted = trimmed.match(/(https?:\/\/[^\s"'<>]+|(?:www\.|m\.|mbasic\.|web\.)?facebook\.com\/[^\s"'<>]+|fb\.watch\/[^\s"'<>]+|(?:www\.)?tiktok\.com\/[^\s"'<>]+|vm\.tiktok\.com\/[^\s"'<>]+|vt\.tiktok\.com\/[^\s"'<>]+|(?:www\.)?douyin\.com\/[^\s"'<>]+|v\.douyin\.com\/[^\s"'<>]+|(?:www\.)?youtube\.com\/[^\s"'<>]+|youtu\.be\/[^\s"'<>]+|jimeng\.jianying\.com\/[^\s"'<>]+)/i);
+  const extracted = trimmed.match(/(https?:\/\/[^\s"'<>]+|(?:www\.|m\.|mbasic\.|web\.)?facebook\.com\/[^\s"'<>]+|fb\.watch\/[^\s"'<>]+|(?:www\.)?tiktok\.com\/[^\s"'<>]+|vm\.tiktok\.com\/[^\s"'<>]+|vt\.tiktok\.com\/[^\s"'<>]+|(?:www\.)?douyin\.com\/[^\s"'<>]+|v\.douyin\.com\/[^\s"'<>]+|jimeng\.jianying\.com\/[^\s"'<>]+)/i);
   const candidate = extracted ? extracted[0].replace(/[)\].,;]+$/, "") : trimmed;
 
   const withProtocol = (/^https?:\/\//i.test(candidate) || /^\/\//.test(candidate))
@@ -91,14 +91,17 @@ function normalizeSupportedInput(rawInput) {
       || /^v[mt]\.tiktok\.com\//i.test(candidate)
       || /^(?:www\.)?douyin\.com\//i.test(candidate)
       || /^v\.douyin\.com\//i.test(candidate)
-      || /^(?:www\.)?youtube\.com\//i.test(candidate)
-      || /^youtu\.be\//i.test(candidate)
       || /^jimeng\.jianying\.com\//i.test(candidate)
         ? `https://${candidate}`
         : candidate
     );
 
   return withProtocol.replace(/[)\].,;]+$/, "");
+}
+
+function isYouTubeUrl(value) {
+  const raw = String(value || "").toLowerCase();
+  return raw.includes("youtube.com/") || raw.includes("youtu.be/");
 }
 
 function detectQuality(item, fallbackIndex) {
@@ -269,6 +272,11 @@ form.addEventListener("submit", async (event) => {
   const finalUrl = normalizeSupportedInput(input.value);
   if (!finalUrl) {
     setStatus("Không tìm thấy link hợp lệ.", true);
+    resetResult();
+    return;
+  }
+  if (isYouTubeUrl(finalUrl)) {
+    setStatus("YouTube tạm thời đã tắt trên máy chủ này.", true);
     resetResult();
     return;
   }
@@ -635,3 +643,27 @@ if (electricityForm && electricityKwhInput && electricityVatRateInput && electri
   electricityExtraFeeInput.addEventListener("input", renderPreview);
   renderPreview();
 }
+
+const randomReviewerEl = document.querySelector("[data-random-reviewer]");
+const randomRoleEl = document.querySelector("[data-random-role]");
+
+if (randomReviewerEl && randomRoleEl) {
+  const reviewerPool = [
+    { name: "Trần Hải Đăng", role: "Video Editor" },
+    { name: "Phạm Minh Tú", role: "Digital Marketer" },
+    { name: "Ngô Quốc Huy", role: "Freelancer" },
+    { name: "Đỗ Thành Nam", role: "Content Creator" },
+    { name: "Vũ Gia Hân", role: "Social Media Manager" },
+    { name: "Lê Đức Khôi", role: "Media Buyer" }
+  ];
+  const picked = reviewerPool[Math.floor(Math.random() * reviewerPool.length)];
+  randomReviewerEl.textContent = picked.name;
+  randomRoleEl.textContent = picked.role;
+}
+
+const currentPage = document.body?.dataset?.page || "home";
+document.querySelectorAll("[data-nav]").forEach((link) => {
+  if (link.getAttribute("data-nav") === currentPage) {
+    link.classList.add("is-active");
+  }
+});

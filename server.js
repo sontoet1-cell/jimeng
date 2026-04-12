@@ -208,7 +208,9 @@ async function fetchProxyFromProxyXoay() {
   }
 }
 
-async function getEffectiveYtDlpProxy() {
+async function getEffectiveYtDlpProxy(options = {}) {
+  const useProxy = options.useProxy === true;
+  if (!useProxy) return "";
   if (PROXYXOAY_KEY) {
     if (rotatingProxyCache.proxyUrl && Date.now() < rotatingProxyCache.expiresAt) {
       return rotatingProxyCache.proxyUrl;
@@ -230,7 +232,7 @@ async function appendYtDlpGlobalArgsAsync(baseArgs, options = {}) {
   const includeCookies = options.includeCookies !== false;
   const cookiesFile = includeCookies ? ensureYtDlpCookiesFile() : "";
   if (cookiesFile) out.push("--cookies", cookiesFile);
-  const proxy = await getEffectiveYtDlpProxy();
+  const proxy = await getEffectiveYtDlpProxy(options);
   if (proxy) out.push("--proxy", proxy);
   return out;
 }
@@ -1546,7 +1548,9 @@ async function runReclipInfo(url) {
     throw createHttpError(502, "Chua tim thay yt-dlp tren may chu.");
   }
   const baseArgs = ["--no-playlist", "--no-warnings", "-j", url];
-  const args = await appendYtDlpGlobalArgsAsync(baseArgs);
+  const args = await appendYtDlpGlobalArgsAsync(baseArgs, {
+    useProxy: detectPlatform(url) === "youtube"
+  });
   const { stdout } = await runCommandCapture(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args]);
   const info = pickJsonFromStdout(stdout);
   if (!info || typeof info !== "object") {
@@ -1586,7 +1590,9 @@ async function runReclipDownloadJob(job) {
       baseArgs.push("-f", "bestvideo+bestaudio/best", "--merge-output-format", "mp4");
     }
     baseArgs.push(job.url);
-    const args = await appendYtDlpGlobalArgsAsync(baseArgs);
+    const args = await appendYtDlpGlobalArgsAsync(baseArgs, {
+      useProxy: detectPlatform(job.url) === "youtube"
+    });
 
     await new Promise((resolve, reject) => {
       const proc = spawn(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args], {
@@ -2037,7 +2043,9 @@ async function downloadViaYtDlpToFile(pageUrl, outputPath) {
       "-o", outputPath,
       pageUrl
     ];
-    appendYtDlpGlobalArgsAsync(baseArgs).then((args) => {
+    appendYtDlpGlobalArgsAsync(baseArgs, {
+      useProxy: detectPlatform(pageUrl) === "youtube"
+    }).then((args) => {
       const proc = spawn(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args], {
         windowsHide: true,
         env: {
@@ -2083,7 +2091,10 @@ async function resolveViaYtDlp(url, platformHint = "unknown") {
   for (const plan of attemptPlans) {
     for (const profile of youtubeProfiles) {
       try {
-        const args = await buildYtDlpResolveArgs(url, platformHint, profile, { includeCookies: plan.includeCookies });
+        const args = await buildYtDlpResolveArgs(url, platformHint, profile, {
+          includeCookies: plan.includeCookies,
+          useProxy: platformHint === "youtube"
+        });
         const { stdout } = await runCommandCapture(ytDlpCommand.executable, [...ytDlpCommand.prefixArgs, ...args]);
         const info = pickJsonFromStdout(stdout);
         if (!info || typeof info !== "object") {

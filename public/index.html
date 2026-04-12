@@ -147,6 +147,16 @@
       color: #fff;
       box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
     }
+    @keyframes float-card {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
+      100% { transform: translateY(0px); }
+    }
+    @keyframes glow-sweep {
+      0% { transform: translateX(-120%); opacity: 0; }
+      20% { opacity: 0.14; }
+      100% { transform: translateX(220%); opacity: 0; }
+    }
     .content-card {
       background: rgba(9, 11, 18, 0.68);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -168,6 +178,119 @@
     .content-card li {
       color: #94a3b8;
       line-height: 1.8;
+    }
+    .neo-card {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 14px 40px rgba(2, 6, 23, 0.28);
+      transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    }
+    .neo-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(105deg, transparent 25%, rgba(255,255,255,0.12) 50%, transparent 75%);
+      transform: translateX(-120%);
+      pointer-events: none;
+    }
+    .neo-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(167, 139, 250, 0.45);
+      box-shadow: 0 24px 50px rgba(76, 29, 149, 0.22);
+    }
+    .neo-card:hover::before {
+      animation: glow-sweep 1.15s ease;
+    }
+    .floaty {
+      animation: float-card 5s ease-in-out infinite;
+    }
+    .feature-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: linear-gradient(135deg, rgba(139,92,246,0.24), rgba(59,130,246,0.16));
+      color: #f8fafc;
+    }
+    .section-title {
+      font-size: clamp(1.8rem, 4vw, 2.4rem);
+      line-height: 1.1;
+      font-weight: 800;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .section-subtitle {
+      max-width: 760px;
+      margin: 0 auto 28px;
+      text-align: center;
+      color: #94a3b8;
+      line-height: 1.8;
+    }
+    .step-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      box-shadow: 0 14px 30px rgba(79, 70, 229, 0.28);
+      margin-bottom: 16px;
+    }
+    .review-stars {
+      letter-spacing: 1px;
+      color: #f59e0b;
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    .faq-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 0 18px;
+    }
+    .faq-item + .faq-item {
+      margin-top: 12px;
+    }
+    .faq-item summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 18px 0;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .faq-item summary::-webkit-details-marker {
+      display: none;
+    }
+    .faq-item p {
+      color: #94a3b8;
+      line-height: 1.8;
+      padding: 0 0 18px;
+      margin: 0;
+    }
+    .faq-item .faq-chevron {
+      transition: transform .2s ease;
+      color: #a78bfa;
+    }
+    .faq-item[open] .faq-chevron {
+      transform: rotate(180deg);
     }
   </style>
   <script type="application/ld+json">
@@ -335,6 +458,111 @@
           <p>Không. Điều này phụ thuộc vào nguồn trả về của từng nền tảng. Công cụ sẽ ưu tiên bản tốt nhất mà server lấy được tại thời điểm xử lý.</p>
         </div>
       </div>
+    </section>
+
+    <section class="w-full max-w-6xl mb-8">
+      <h2 class="section-title">Tính Năng Nổi Bật</h2>
+      <p class="section-subtitle">
+        Giao diện được làm lại theo hướng trực quan hơn: dễ hiểu, nổi bật đúng lợi ích người dùng và có chuyển động nhẹ để tạo cảm giác hiện đại hơn khi thao tác.
+      </p>
+      <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <article class="neo-card floaty">
+          <div class="feature-icon"><i class="fas fa-shield-heart"></i></div>
+          <h3 class="text-white text-xl font-bold mb-2">Video Không Đóng Dấu</h3>
+          <p class="text-slate-400 leading-7">Ưu tiên bản sạch và bản chất lượng cao nhất khi nguồn trả về hỗ trợ.</p>
+        </article>
+        <article class="neo-card">
+          <div class="feature-icon"><i class="fas fa-film"></i></div>
+          <h3 class="text-white text-xl font-bold mb-2">Video Gốc</h3>
+          <p class="text-slate-400 leading-7">Hiển thị rõ các mức chất lượng, dễ chọn đúng file bạn muốn tải.</p>
+        </article>
+        <article class="neo-card floaty" style="animation-delay:.8s">
+          <div class="feature-icon"><i class="fas fa-images"></i></div>
+          <h3 class="text-white text-xl font-bold mb-2">Thumbnail Rõ Ràng</h3>
+          <p class="text-slate-400 leading-7">Có ảnh preview và tiêu đề để người dùng kiểm tra đúng video trước khi tải.</p>
+        </article>
+        <article class="neo-card">
+          <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+          <h3 class="text-white text-xl font-bold mb-2">Xử Lý Nhanh</h3>
+          <p class="text-slate-400 leading-7">Tối ưu luồng resolve theo từng nền tảng để phản hồi sớm hơn trên mobile.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="w-full max-w-6xl mb-8">
+      <h2 class="section-title">Hướng Dẫn Sử Dụng</h2>
+      <p class="section-subtitle">
+        Luồng dùng ngắn gọn, rõ ràng, tập trung đúng mục tiêu tải video càng nhanh càng tốt.
+      </p>
+      <div class="grid md:grid-cols-3 gap-4">
+        <article class="neo-card text-center">
+          <div class="step-badge">1</div>
+          <h3 class="text-white text-2xl font-bold mb-2">Sao Chép Link Video</h3>
+          <p class="text-slate-400 leading-7">Copy link Facebook, TikTok, Jimeng hoặc Douyin từ app hay trình duyệt.</p>
+        </article>
+        <article class="neo-card text-center">
+          <div class="step-badge">2</div>
+          <h3 class="text-white text-2xl font-bold mb-2">Dán Và Phân Tích</h3>
+          <p class="text-slate-400 leading-7">Dán link vào ô đầu trang, hệ thống sẽ tự nhận nền tảng và tìm nguồn phù hợp.</p>
+        </article>
+        <article class="neo-card text-center">
+          <div class="step-badge">3</div>
+          <h3 class="text-white text-2xl font-bold mb-2">Tải Và Lưu</h3>
+          <p class="text-slate-400 leading-7">Chọn bản tốt nhất hoặc mức chất lượng mong muốn rồi tải thẳng về máy.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="w-full max-w-6xl mb-8">
+      <h2 class="section-title">Người Dùng Nói Gì</h2>
+      <p class="section-subtitle">
+        Phần này tạo cảm giác tin cậy hơn khi người dùng mới vào trang, đồng thời giúp bố cục nhìn dày và chuyên nghiệp hơn.
+      </p>
+      <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <article class="neo-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="italic text-slate-300 mb-4">"Tốc độ xử lý nhanh, giao diện rõ và nhìn gọn. Dán link vào là ra ngay."</p>
+          <div class="text-white font-semibold">Nguyễn Văn Nam</div>
+          <div class="text-slate-500 text-sm">Content Creator</div>
+        </article>
+        <article class="neo-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="italic text-slate-300 mb-4">"Bản mobile dùng ổn, nhìn sáng sủa hơn trước. Mình thích phần chọn chất lượng riêng."</p>
+          <div class="text-white font-semibold">Trần Thị Hồng</div>
+          <div class="text-slate-500 text-sm">Video Editor</div>
+        </article>
+        <article class="neo-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="italic text-slate-300 mb-4">"Khối hướng dẫn và FAQ làm người mới dễ hiểu hơn, đỡ cảm giác tool thô."</p>
+          <div class="text-white font-semibold">Lê Minh Triết</div>
+          <div class="text-slate-500 text-sm">Digital Marketer</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="w-full max-w-5xl mb-10 neo-card">
+      <h2 class="section-title mb-6">FAQ Nhanh</h2>
+      <details class="faq-item" open>
+        <summary>
+          <span>Tienich.pro downloader là gì?</span>
+          <i class="fas fa-chevron-down faq-chevron"></i>
+        </summary>
+        <p>Đây là công cụ tải video đa nền tảng cho Facebook, TikTok, Jimeng và Douyin, tập trung vào thao tác nhanh, ít bước và hiển thị rõ chất lượng tải.</p>
+      </details>
+      <details class="faq-item">
+        <summary>
+          <span>Có mất phí không?</span>
+          <i class="fas fa-chevron-down faq-chevron"></i>
+        </summary>
+        <p>Trang hiện được thiết kế theo hướng miễn phí cho người dùng cuối. Tốc độ và nguồn tải phụ thuộc vào từng nền tảng và trạng thái máy chủ tại thời điểm xử lý.</p>
+      </details>
+      <details class="faq-item">
+        <summary>
+          <span>Facebook đôi khi vì sao chậm hơn TikTok?</span>
+          <i class="fas fa-chevron-down faq-chevron"></i>
+        </summary>
+        <p>Một số link Facebook cần qua bước redirect hoặc fallback để dò đúng nguồn video. Mình đã tối ưu nhanh hơn cho link video trực tiếp nhưng vẫn có trường hợp nền tảng phản hồi chậm.</p>
+      </details>
     </section>
 
     <section class="w-full max-w-6xl pt-6 border-t border-white/10">

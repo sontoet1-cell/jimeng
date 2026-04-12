@@ -691,6 +691,7 @@ async function resolveFacebookProfileId(rawUrl) {
     if (scrapingBeeResult) {
       candidates.push("__SCRAPINGBEE__");
     }
+    candidates.push(""); // try direct before public proxies
     if (proxyList.length > 0) {
       const randomStart = Math.floor(Math.random() * proxyList.length);
       for (let i = 0; i < Math.min(4, proxyList.length); i += 1) {
@@ -698,7 +699,7 @@ async function resolveFacebookProfileId(rawUrl) {
         candidates.push(proxyList[idx]);
       }
     }
-    candidates.push(""); // fallback direct
+
 
     for (const proxy of candidates) {
       try {
@@ -713,6 +714,16 @@ async function resolveFacebookProfileId(rawUrl) {
       }
     }
     if (html) break;
+  }
+
+  const redirectedId = extractFacebookIdFromUrl(finalUrl);
+  if (redirectedId) {
+    return {
+      id: redirectedId,
+      username: username || "",
+      profile_url: finalUrl || normalized,
+      source: "redirect"
+    };
   }
 
   if (!html) {
@@ -3136,4 +3147,5 @@ server.listen(PORT, () => {
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
 

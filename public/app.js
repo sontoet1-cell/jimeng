@@ -440,16 +440,16 @@ if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
 if (fbIdCopyBtn && fbIdResult) {
   fbIdCopyBtn.addEventListener("click", async () => {
     if (!currentFacebookId) {
-      fbIdResult.textContent = "ChÆ°a cÃ³ Facebook ID Ä‘á»ƒ copy.";
+      fbIdResult.textContent = "Chưa có Facebook ID để copy.";
       fbIdResult.style.color = "#f87171";
       return;
     }
     try {
       await navigator.clipboard.writeText(currentFacebookId);
-      fbIdResult.textContent = `ÄÃ£ copy Facebook ID: ${currentFacebookId}`;
+      fbIdResult.textContent = `Đã copy Facebook ID: ${currentFacebookId}`;
       fbIdResult.style.color = "#22c55e";
     } catch {
-      fbIdResult.textContent = "KhÃ´ng copy Ä‘Æ°á»£c. HÃ£y copy thá»§ cÃ´ng.";
+      fbIdResult.textContent = "Không copy được. Hãy copy thủ công.";
       fbIdResult.style.color = "#f87171";
     }
   });
@@ -485,25 +485,25 @@ function base32ToBytes(input) {
 function parseAuthenticatorSecret(input) {
   const raw = String(input || "").trim().replace(/\s+/g, "");
   if (!raw) {
-    throw new Error("Vui lÃ²ng nháº­p secret key 2FA.");
+    throw new Error("Vui lòng nhập secret key 2FA.");
   }
   if (/^otpauth:\/\//i.test(raw)) {
     try {
       const parsed = new URL(raw);
       const secretFromUrl = String(parsed.searchParams.get("secret") || "").trim();
       if (!secretFromUrl) {
-        throw new Error("Chuá»—i otpauth thiáº¿u secret.");
+        throw new Error("Chuỗi otpauth thiếu secret.");
       }
       if (!/^[A-Z2-7]+=*$/i.test(secretFromUrl)) {
-        throw new Error("Secret trong otpauth khÃ´ng Ä‘Ãºng Base32.");
+        throw new Error("Secret trong otpauth không đúng Base32.");
       }
       return secretFromUrl;
     } catch {
-      throw new Error("Chuá»—i otpauth khÃ´ng há»£p lá»‡.");
+      throw new Error("Chuỗi otpauth không hợp lệ.");
     }
   }
   if (!/^[A-Z2-7]+=*$/i.test(raw)) {
-    throw new Error("Secret key khÃ´ng Ä‘Ãºng Ä‘á»‹nh dáº¡ng Base32.");
+    throw new Error("Secret key không đúng định dạng Base32.");
   }
   return raw;
 }
@@ -547,7 +547,7 @@ async function updateTotpView() {
 
   if (!secret) {
     totpCodeEl.textContent = "------";
-    totpStatusEl.textContent = "Nháº­p secret key Ä‘á»ƒ táº¡o mÃ£ 2FA.";
+    totpStatusEl.textContent = "Nhập secret key để tạo mã 2FA.";
     totpStatusEl.style.color = "#94a3b8";
     return;
   }
@@ -556,11 +556,11 @@ async function updateTotpView() {
     const parsedSecret = parseAuthenticatorSecret(secret);
     const code = await generateTotp(parsedSecret);
     totpCodeEl.textContent = code;
-    totpStatusEl.textContent = "MÃ£ 2FA Ä‘ang hoáº¡t Ä‘á»™ng.";
+    totpStatusEl.textContent = "Mã 2FA đang hoạt động.";
     totpStatusEl.style.color = "#22c55e";
   } catch (error) {
     totpCodeEl.textContent = "------";
-    totpStatusEl.textContent = error.message || "Secret key khÃ´ng há»£p lá»‡.";
+    totpStatusEl.textContent = error.message || "Secret key không hợp lệ.";
     totpStatusEl.style.color = "#f87171";
   }
 }
@@ -576,16 +576,16 @@ if (totpSecretInput && totpCodeEl && totpTimerEl && totpCopyBtn && totpStatusEl)
   totpCopyBtn.addEventListener("click", async () => {
     const code = String(totpCodeEl.textContent || "").trim();
     if (!/^\d{6}$/.test(code)) {
-      totpStatusEl.textContent = "ChÆ°a cÃ³ mÃ£ há»£p lá»‡ Ä‘á»ƒ copy.";
+      totpStatusEl.textContent = "Chưa có mã hợp lệ để copy.";
       totpStatusEl.style.color = "#f87171";
       return;
     }
     try {
       await navigator.clipboard.writeText(code);
-      totpStatusEl.textContent = "ÄÃ£ copy mÃ£ 2FA.";
+      totpStatusEl.textContent = "Đã copy mã 2FA.";
       totpStatusEl.style.color = "#22c55e";
     } catch {
-      totpStatusEl.textContent = "KhÃ´ng copy Ä‘Æ°á»£c. HÃ£y copy thá»§ cÃ´ng.";
+      totpStatusEl.textContent = "Không copy được. Hãy copy thủ công.";
       totpStatusEl.style.color = "#f87171";
     }
   });
@@ -603,16 +603,16 @@ const electricityTotalEl = document.getElementById("electricity-total");
 const electricityBreakdownEl = document.getElementById("electricity-breakdown");
 
 const ELECTRICITY_TIERS = [
-  { cap: 50, price: 1984, label: "Báº­c 1" },
-  { cap: 50, price: 2050, label: "Báº­c 2" },
-  { cap: 100, price: 2380, label: "Báº­c 3" },
-  { cap: 100, price: 2998, label: "Báº­c 4" },
-  { cap: 100, price: 3350, label: "Báº­c 5" },
-  { cap: Infinity, price: 3460, label: "Báº­c 6" }
+  { cap: 50, price: 1984, label: "Bậc 1" },
+  { cap: 50, price: 2050, label: "Bậc 2" },
+  { cap: 100, price: 2380, label: "Bậc 3" },
+  { cap: 100, price: 2998, label: "Bậc 4" },
+  { cap: 100, price: 3350, label: "Bậc 5" },
+  { cap: Infinity, price: 3460, label: "Bậc 6" }
 ];
 
 function formatVnd(amount) {
-  return `${Number(amount || 0).toLocaleString("vi-VN")} Ä‘`;
+  return `${Number(amount || 0).toLocaleString("vi-VN")} đ`;
 }
 
 function calculateElectricityBill(kwhInput, vatRatePercent, extraFeeInput) {
@@ -654,7 +654,7 @@ function renderElectricityBill(result) {
     const line = document.createElement("div");
     line.className = "flex items-center justify-between border-b border-white/5 pb-2";
     line.innerHTML = `
-      <span class="text-slate-300">${row.label} (${row.used} kWh Ã— ${row.price.toLocaleString("vi-VN")} Ä‘):</span>
+      <span class="text-slate-300">${row.label} (${row.used} kWh × ${row.price.toLocaleString("vi-VN")} đ):</span>
       <strong class="text-slate-100">${formatVnd(row.cost)}</strong>
     `;
     electricityBreakdownEl.appendChild(line);
@@ -667,7 +667,7 @@ if (electricityForm && electricityKwhInput && electricityVatRateInput && electri
     const raw = Number(electricityKwhInput.value);
     if (!Number.isFinite(raw) || raw <= 0) {
       electricityKwhInput.focus();
-      alert("Vui lÃ²ng nháº­p sá»‘ kWh há»£p lá»‡ (>0).");
+      alert("Vui lòng nhập số kWh hợp lệ (>0).");
       return;
     }
     const bill = calculateElectricityBill(raw, electricityVatRateInput.value, electricityExtraFeeInput.value);
@@ -689,12 +689,12 @@ const randomRoleEl = document.querySelector("[data-random-role]");
 
 if (randomReviewerEl && randomRoleEl) {
   const reviewerPool = [
-    { name: "Tráº§n Háº£i ÄÄƒng", role: "Video Editor" },
-    { name: "Pháº¡m Minh TÃº", role: "Digital Marketer" },
-    { name: "NgÃ´ Quá»‘c Huy", role: "Freelancer" },
-    { name: "Äá»— ThÃ nh Nam", role: "Content Creator" },
-    { name: "VÅ© Gia HÃ¢n", role: "Social Media Manager" },
-    { name: "LÃª Äá»©c KhÃ´i", role: "Media Buyer" }
+    { name: "Trần Hải Đăng", role: "Video Editor" },
+    { name: "Phạm Minh Tú", role: "Digital Marketer" },
+    { name: "Ngô Quốc Huy", role: "Freelancer" },
+    { name: "Đỗ Thành Nam", role: "Content Creator" },
+    { name: "Vũ Gia Hân", role: "Social Media Manager" },
+    { name: "Lê Đức Khôi", role: "Media Buyer" }
   ];
   const picked = reviewerPool[Math.floor(Math.random() * reviewerPool.length)];
   randomReviewerEl.textContent = picked.name;

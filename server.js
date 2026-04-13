@@ -2065,6 +2065,89 @@ async function resolveViaTikwm(url) {
     qualities: candidates
   }, url);
 }
+async function resolveViaSaveTikDouyin(url) {
+  const form = new URLSearchParams({
+    q: url,
+    cursor: "0",
+    page: "0",
+    lang: "vi"
+  });
+
+  const response = await fetch("https://savetik.io/api/ajaxSearch", {
+    method: "POST",
+    headers: {
+      ...DEFAULT_HEADERS,
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: "https://savetik.io/vi/douyin-video-downloader",
+      Origin: "https://savetik.io"
+    },
+    body: form.toString()
+  });
+
+  if (!response.ok) {
+    throw createHttpError(502, `SaveTik Douyin tra ve HTTP ${response.status}.`);
+  }
+
+  const json = await response.json().catch(() => null);
+  if (!json || json.status !== "ok" || typeof json.data !== "string") {
+    throw createHttpError(502, "SaveTik Douyin khong tra du lieu hop le.");
+  }
+
+  const html = String(json.data || "");
+  const title = decodeHtmlEntities((html.match(/<h3>([\s\S]*?)<\/h3>/i) || [])[1] || "").trim();
+  const coverUrl = normalizeVideoUrl(decodeHtmlEntities((html.match(/<img[^>]+src="([^"]+)"/i) || [])[1] || ""));
+  const itemId = decodeHtmlEntities((html.match(/id="TikTokId" value="([^"]+)"/i) || [])[1] || extractVideoId(url) || "");
+
+  const qualities = [];
+  const seen = new Set();
+  const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match = null;
+  while ((match = linkPattern.exec(html)) !== null) {
+    const href = normalizeVideoUrl(decodeHtmlEntities(match[1] || ""));
+    const text = decodeHtmlEntities(String(match[2] || "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+    if (!href || !text || /mp3/i.test(text)) continue;
+    if (!/mp4|download/i.test(text)) continue;
+    if (seen.has(href)) continue;
+    seen.add(href);
+
+    let quality = "douyin";
+    let height = 0;
+    if (/hd/i.test(text)) {
+      quality = "1080p";
+      height = 1080;
+    } else if (/\[1\]/.test(text)) {
+      quality = "720p";
+      height = 720;
+    } else if (/\[2\]/.test(text)) {
+      quality = "540p";
+      height = 540;
+    }
+
+    qualities.push({
+      label: text,
+      quality,
+      url: href,
+      width: 0,
+      height,
+      fps: 0,
+      has_audio: true,
+      audio_url: "",
+      watermark_status: "unknown"
+    });
+  }
+
+  if (!qualities.length) {
+    throw createHttpError(502, "SaveTik Douyin khong tim thay link tai video.");
+  }
+
+  return normalizeVideoResult({
+    item_id: itemId,
+    title,
+    cover_url: coverUrl,
+    qualities
+  }, url);
+}
 
 function postProcessByPlatform(result, platform) {
   const qualities = Array.isArray(result?.qualities) ? [...result.qualities] : [];
@@ -2559,6 +2642,22 @@ async function resolveVideoByPlatform(url) {
   if (platform === "douyin") {
     const redirect = await resolveRedirectInfo(normalizedForResolver);
     const probes = [...new Set([normalizedForResolver, redirect.location || normalizedForResolver].filter(Boolean))];
+
+    for (const probe of probes) {
+      try {
+        const saveTikDouyin = await resolveViaSaveTikDouyin(probe);
+        if (saveTikDouyin?.qualities?.length) {
+          return postProcessByPlatform({
+            ...saveTikDouyin,
+            source_page_url: probe,
+            resolver: "savetik_douyin",
+            platform
+          }, platform);
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
 
     for (const probe of probes) {
       try {
@@ -3268,6 +3367,8 @@ server.listen(PORT, () => {
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
+
 
 
 

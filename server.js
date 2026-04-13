@@ -1800,6 +1800,36 @@ function normalizeJimengSoraPayload(payload) {
     return true;
   };
 
+  const topLevelQualityKeys = [
+    "origin",
+    "original",
+    "raw",
+    "best",
+    "url",
+    "video_url",
+    "download_url",
+    "hd",
+    "sd"
+  ];
+
+  for (const key of topLevelQualityKeys) {
+    const url = normalizeVideoUrl(payload[key]);
+    if (!url) continue;
+    const label = key === "url" || key === "video_url" || key === "download_url" ? "origin" : key;
+    if (!allowQuality(label)) continue;
+    qualities.push({
+      label,
+      quality: label,
+      url,
+      width: 0,
+      height: isOriginalQualityMarker(label) ? 10000 : (detectQualityNumber(label) || detectQualityNumber(url)),
+      fps: 0,
+      has_audio: true,
+      audio_url: "",
+      watermark_status: "unknown"
+    });
+  }
+
   for (const item of fromQualities) {
     const url = normalizeVideoUrl(item?.url || item?.download_url || "");
     if (!url) continue;

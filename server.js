@@ -1933,45 +1933,133 @@ function soraRefererByPlatform(platform) {
   if (platform === "youtube") return "https://sora2dl.com/youtube";
   return "https://sora2dl.com/";
 }
+function extractJimengFromLandingPayload(payload) {
+  const root = payload?.data?.page_info?.creation || payload?.data?.creation || null;
+  const list = payload?.data?.page_info?.creation_list || payload?.data?.creation_list || [];
+  const candidates = [root, ...list].filter(Boolean);
+
+  for (const item of candidates) {
+    const metadata = item?.metadata || {};
+    const urlCandidates = [
+      metadata?.origin_video?.url,
+      metadata?.origin_video?.play_url,
+      metadata?.video?.url,
+      metadata?.video?.play_url,
+      item?.origin_video?.url,
+      item?.origin_video?.play_url,
+      item?.video?.url,
+      item?.video?.play_url,
+      item?.play_url,
+      item?.url
+    ];
+
+    const deduped = [...new Set(urlCandidates.map((u) => normalizeVideoUrl(u)).filter(Boolean))];
+    if (!deduped.length) continue;
+
+    return {
+      item_id: String(item?.item_id || metadata?.item_id || payload?.data?.item_id || Date.now()),
+      title: String(metadata?.title || item?.title || payload?.data?.page_info?.share_info?.share_title || ""),
+      cover_url: String(metadata?.cover_url || metadata?.poster_url || item?.cover_url || item?.poster_url || ""),
+      qualities: deduped.map((u, i) => ({
+        label: i === 0 ? "Jimeng Origin" : `Jimeng ${i + 1}`,
+        quality: i === 0 ? "origin" : `q${i + 1}`,
+        url: u,
+        width: Number(metadata.width) || 0,
+        height: Number(metadata.height) || detectQualityNumber(u),
+        fps: Number(metadata.fps) || 0,
+        has_audio: true,
+        audio_url: "",
+        watermark_status: "unknown"
+      }))
+    };
+  }
+
+  return null;
+}
+
+async function resolveJimengViaLandingApi(url) {
+  const redirected = await resolveRedirectInfo(url);
+  const finalUrl = new URL(redirected.location || url);
+  const queryParams = {};
+  for (const [key, value] of finalUrl.searchParams.entries()) {
+    queryParams[key] = value;
+  }
+
+  const endpoint = "https://jimeng.jianying.com/luckycat/cn/jianying/campaign/v1/dreamina/share/landing_page";
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...DEFAULT_HEADERS,
+      Referer: "https://jimeng.jianying.com/",
+      Origin: "https://jimeng.jianying.com"
+    },
+    body: JSON.stringify({
+      query_params: queryParams,
+      item_id: queryParams.id || "",
+      sec_uid: queryParams.share_sec_uid || "",
+      prop_id: ""
+    })
+  });
+
+  if (!response.ok) {
+    throw createHttpError(502, `Jimeng landing API tra ve HTTP ${response.status}.`);
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!payload || String(payload.err_no || "0") !== "0") {
+    throw createHttpError(502, payload?.err_tips || "Jimeng landing API khong tra du lieu hop le.");
+  }
+
+  const extracted = extractJimengFromLandingPayload(payload);
+  if (!extracted?.qualities?.length) {
+    throw createHttpError(502, "Jimeng landing API khong tim thay nguon video.");
+  }
+  return normalizeVideoResult(extracted, url);
+}
 
 async function resolveViaSora(url, platform = "unknown") {
   if (platform === "jimeng") {
-    const response = await fetch("https://savevideoraw.com/apij.php", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...DEFAULT_HEADERS,
-        Referer: "https://savevideoraw.com/jimeng",
-        Origin: "https://savevideoraw.com"
-      },
-      body: JSON.stringify({ text: url })
-    });
-
-    if (!response.ok) {
-      throw createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status}.`);
+    try {
+      const direct = await resolveJimengViaLandingApi(url);
+      if (direct?.qualities?.length) return direct;
+    } catch (error) {
+      console.warn(`[jimeng] landing-api failed: ${error?.message || error}`);
     }
 
-    const json = await response.json().catch(() => null);
-    console.log("[jimeng] gateway keys", json && typeof json === "object" ? Object.keys(json).slice(0, 30) : []);
-    console.log("[jimeng] gateway top-level", {
-      origin: Boolean(json?.origin),
-      original: Boolean(json?.original),
-      raw: Boolean(json?.raw),
-      best: Boolean(json?.best),
-      url: Boolean(json?.url),
-      video_url: Boolean(json?.video_url),
-      download_url: Boolean(json?.download_url),
-      qualities: Array.isArray(json?.qualities) ? json.qualities.length : 0,
-      data: Array.isArray(json?.data) ? json.data.length : 0
-    });
-    const normalized = normalizeJimengSoraPayload(json);
-    if (!normalized) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch("https://savevideoraw.com/apij.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...DEFAULT_HEADERS,
+          Referer: "https://savevideoraw.com/jimeng",
+          Origin: "https://savevideoraw.com"
+        },
+        body: JSON.stringify({ text: url })
+      });
+
+      if (!response.ok) {
+        if (attempt === 0 && (response.status >= 500 || response.status === 429 || response.status === 415)) {
+          await sleep(700);
+          continue;
+        }
+        throw createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status}.`);
+      }
+
+      const json = await response.json().catch(() => null);
+      const normalized = normalizeJimengSoraPayload(json);
+      if (normalized?.qualities?.length) {
+        return normalizeVideoResult(normalized, url);
+      }
+
+      if (attempt === 0) {
+        await sleep(700);
+        continue;
+      }
       throw createHttpError(502, json?.error || "Jimeng gateway khong tra du lieu hop le.");
     }
-    console.log("[jimeng] normalized raw qualities", summarizeQualityDebug(normalized.qualities));
-    const finalNormalized = normalizeVideoResult(normalized, url);
-    console.log("[jimeng] final qualities", summarizeQualityDebug(finalNormalized.qualities));
-    return finalNormalized;
   }
 
   const endpoint = `https://sora2dl.com/downloadi.php?url=${encodeURIComponent(url)}`;
@@ -2206,6 +2294,11 @@ function postProcessByPlatform(result, platform) {
 
   return {
     ...result,
+    qualities: qualities.map((item) => ({
+      ...item,
+      platform: item?.platform || platform,
+      page_url: item?.page_url || result?.source_page_url || ""
+    })),
     requires_postprocess: needMerge
   };
 }
@@ -3271,9 +3364,19 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: "Nguon tai khong hop le." });
       }
 
+      let refererOverride = "";
+      try {
+        const pageParsed = new URL(pageUrl);
+        if (/^https?:$/i.test(pageParsed.protocol) && !isUnsafeHostname(pageParsed.hostname)) {
+          refererOverride = pageParsed.toString();
+        }
+      } catch {
+        refererOverride = "";
+      }
+
       const upstream = await fetch(sourceUrl, {
         method: "GET",
-        headers: buildSourceHeaders(sourceUrl),
+        headers: buildSourceHeaders(sourceUrl, refererOverride),
         redirect: "follow"
       });
 
@@ -3367,6 +3470,9 @@ server.listen(PORT, () => {
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
+
+
 
 
 

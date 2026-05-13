@@ -2044,40 +2044,81 @@ async function resolveJimengViaLandingApi(url) {
 async function resolveViaSora(url, platform = "unknown") {
   if (platform === "jimeng") {
     let lastJimengError = null;
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await fetch("https://savevideoraw.com/apij.php", {
-        method: "POST",
+    const gatewayVariants = [
+      {
+        name: "json_text",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json, text/plain, */*",
+          "X-Requested-With": "XMLHttpRequest",
           ...DEFAULT_HEADERS,
           Referer: "https://savevideoraw.com/jimeng",
           Origin: "https://savevideoraw.com"
         },
         body: JSON.stringify({ text: url })
-      });
+      },
+      {
+        name: "json_text_url",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/plain, */*",
+          "X-Requested-With": "XMLHttpRequest",
+          ...DEFAULT_HEADERS,
+          Referer: "https://savevideoraw.com/jimeng",
+          Origin: "https://savevideoraw.com"
+        },
+        body: JSON.stringify({ text: url, url })
+      },
+      {
+        name: "form_text",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "Accept": "application/json, text/plain, */*",
+          "X-Requested-With": "XMLHttpRequest",
+          ...DEFAULT_HEADERS,
+          Referer: "https://savevideoraw.com/jimeng",
+          Origin: "https://savevideoraw.com"
+        },
+        body: new URLSearchParams({ text: url }).toString()
+      }
+    ];
 
-      if (!response.ok) {
-        lastJimengError = createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status}`);
-        if (attempt < 2 && (response.status >= 500 || response.status === 429 || response.status === 415)) {
-          await sleep(800);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (const variant of gatewayVariants) {
+        const response = await fetch("https://savevideoraw.com/apij.php", {
+          method: "POST",
+          headers: variant.headers,
+          body: variant.body
+        });
+
+        const rawText = await response.text().catch(() => "");
+        if (!response.ok) {
+          console.warn("[jimeng] gateway " + variant.name + " status=" + response.status + " body=" + String(rawText || "").slice(0, 280));
+          lastJimengError = createHttpError(502, "Jimeng gateway tra ve HTTP " + response.status);
           continue;
         }
-        throw lastJimengError;
+
+        let json = null;
+        try {
+          json = JSON.parse(rawText);
+        } catch {
+          console.warn("[jimeng] gateway " + variant.name + " invalid-json body=" + String(rawText || "").slice(0, 280));
+          lastJimengError = createHttpError(502, "Jimeng gateway tra JSON khong hop le.");
+          continue;
+        }
+
+        const normalized = normalizeJimengSoraPayload(json);
+        if (normalized?.qualities?.length) {
+          return normalizeVideoResult(normalized, url);
+        }
+
+        console.warn("[jimeng] gateway " + variant.name + " empty-qualities keys=" + Object.keys(json || {}).join(','));
+        lastJimengError = createHttpError(502, json?.error || "Jimeng gateway khong tra du lieu hop le.");
       }
 
-      const json = await response.json().catch(() => null);
-      const normalized = normalizeJimengSoraPayload(json);
-      if (normalized?.qualities?.length) {
-        return normalizeVideoResult(normalized, url);
-      }
-
-      lastJimengError = createHttpError(502, json?.error || "Jimeng gateway khong tra du lieu hop le.");
-      if (attempt < 2) {
+      if (attempt < 1) {
         await sleep(800);
-        continue;
       }
-      throw lastJimengError;
     }
 
     throw lastJimengError || createHttpError(502, "Jimeng gateway khong tra duoc nguon video hop le.");

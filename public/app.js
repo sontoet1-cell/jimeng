@@ -141,6 +141,102 @@ function isYouTubeUrl(value) {
   return raw.includes("youtube.com/") || raw.includes("youtu.be/");
 }
 
+function isJimengUrl(value) {
+  const raw = String(value || "").toLowerCase();
+  return raw.includes("jimeng.jianying.com/");
+}
+
+function normalizeJimengBrowserPayload(payload, pageUrl) {
+  if (!payload || payload.success !== true) return null;
+  const fromQualities = Array.isArray(payload.qualities) ? payload.qualities : [];
+  const fromData = Array.isArray(payload.data) ? payload.data : [];
+  const qualities = [];
+  const seen = new Set();
+
+  const pushItem = (item) => {
+    if (!item || !item.url) return;
+    const url = String(item.url || "").trim();
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    qualities.push({
+      label: item.label || item.quality || "Jimeng",
+      quality: item.quality || item.label || "Jimeng",
+      url,
+      width: Number(item.width) || 0,
+      height: Number(item.height) || 0,
+      fps: Number(item.fps) || 0,
+      size: Number(item.size) || 0,
+      has_audio: item.has_audio !== false,
+      audio_url: "",
+      platform: "jimeng",
+      page_url: pageUrl || ""
+    });
+  };
+
+  fromQualities.forEach(pushItem);
+  fromData.forEach((item, index) => pushItem({
+    ...item,
+    label: item?.quality || item?.label || (index === 0 ? "Origin (Best)" : `Q${index + 1}`),
+    quality: item?.quality || item?.label || (index === 0 ? "origin" : `q${index + 1}`)
+  }));
+
+  const score = (item) => {
+    const text = `${item.label || ""} ${item.quality || ""} ${item.url || ""}`.toLowerCase();
+    let n = 0;
+    if (text.includes("origin_std") || text.includes("standard")) n += 20000;
+    else if (text.includes("origin") || text.includes("original") || text.includes("raw") || text.includes("best")) n += 40000;
+    if (text.includes("workers.dev") && text.includes("/stream")) n += 50000;
+    n += Math.min(20000, Math.floor((Number(item.size) || 0) / 1024));
+    n += (Number(item.height) || 0) * 4;
+    n += (Number(item.fps) || 0) * 10;
+    return n;
+  };
+
+  qualities.sort((a, b) => score(b) - score(a));
+  if (!qualities.length) return null;
+
+  return {
+    item_id: String(payload.item_id || ""),
+    title: "",
+    cover_url: String(payload.cover_url || ""),
+    platform: "jimeng",
+    requires_postprocess: false,
+    qualities
+  };
+}
+
+async function resolveJimengInBrowser(url) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch("https://savevideoraw.com/apij.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/plain, */*"
+        },
+        body: JSON.stringify({ text: url })
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || "Khong the xu ly link Jimeng."}`);
+      }
+      const normalized = normalizeJimengBrowserPayload(payload, url);
+      if (normalized?.qualities?.length) return normalized;
+      throw new Error(payload?.error || payload?.message || "Jimeng khong tra du lieu hop le.");
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        setStatus("Jimeng dang thu lai tu trinh duyet...");
+        await sleep(700);
+        continue;
+      }
+    }
+  }
+  throw lastError || new Error("Khong the xu ly link Jimeng.");
+}
+
+
 function detectQuality(item, fallbackIndex) {
   const candidates = [item?.quality, item?.label, item?.url, ""];
   for (const source of candidates) {
@@ -189,6 +285,10 @@ function renderQualities(itemId, qualities) {
 }
 
 async function resolveWithRetry(url) {
+  if (isJimengUrl(url)) {
+    return resolveJimengInBrowser(url);
+  }
+
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -207,11 +307,11 @@ async function resolveWithRetry(url) {
 
       if (!response.ok) {
         if (response.status >= 500 && attempt === 0) {
-          setStatus(`Máy chủ lỗi ${response.status}, đang thử lại...`);
+          setStatus(`May chu loi ${response.status}, dang thu lai...`);
           await sleep(900);
           continue;
         }
-        throw new Error(`HTTP ${response.status}: ${payload?.error || "Không thể xử lý link này."}`);
+        throw new Error(`HTTP ${response.status}: ${payload?.error || "Khong the xu ly link nay."}`);
       }
 
       return payload || {};
@@ -220,14 +320,14 @@ async function resolveWithRetry(url) {
       const message = String(error?.message || "").toLowerCase();
       const retryable = message.includes("failed to fetch") || message.includes("network");
       if (retryable && attempt === 0) {
-        setStatus("Kết nối không ổn định, đang thử lại...");
+        setStatus("Ket noi khong on dinh, dang thu lai...");
         await sleep(900);
         continue;
       }
       throw error;
     }
   }
-  throw lastError || new Error("Không thể xử lý link này.");
+  throw lastError || new Error("Khong the xu ly link nay.");
 }
 
 async function createProcessJob(item, itemId) {

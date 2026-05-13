@@ -2045,7 +2045,7 @@ async function resolveViaSora(url, platform = "unknown") {
   if (platform === "jimeng") {
     let lastJimengError = null;
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await fetch("https://savevideoraw.com/apij.php", {
         method: "POST",
         headers: {
@@ -2058,12 +2058,12 @@ async function resolveViaSora(url, platform = "unknown") {
       });
 
       if (!response.ok) {
-        lastJimengError = createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status} .`.replace(' .', '.'));
-        if (attempt === 0 && (response.status >= 500 || response.status === 429 || response.status === 415)) {
-          await sleep(700);
+        lastJimengError = createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status}`);
+        if (attempt < 2 && (response.status >= 500 || response.status === 429 || response.status === 415)) {
+          await sleep(800);
           continue;
         }
-        break;
+        throw lastJimengError;
       }
 
       const json = await response.json().catch(() => null);
@@ -2073,24 +2073,14 @@ async function resolveViaSora(url, platform = "unknown") {
       }
 
       lastJimengError = createHttpError(502, json?.error || "Jimeng gateway khong tra du lieu hop le.");
-      if (attempt === 0) {
-        await sleep(700);
+      if (attempt < 2) {
+        await sleep(800);
         continue;
       }
-      break;
+      throw lastJimengError;
     }
 
-    try {
-      const direct = await resolveJimengViaLandingApi(url);
-      if (direct?.qualities?.length) return direct;
-    } catch (error) {
-      console.warn(`[jimeng] landing-api failed: ${error?.message || error}`);
-      if (!lastJimengError) {
-        lastJimengError = error?.statusCode ? error : createHttpError(502, error?.message || "Jimeng landing API that bai.");
-      }
-    }
-
-    throw lastJimengError || createHttpError(502, "Jimeng khong tra duoc nguon video hop le.");
+    throw lastJimengError || createHttpError(502, "Jimeng gateway khong tra duoc nguon video hop le.");
   }
 
   const endpoint = `https://sora2dl.com/downloadi.php?url=${encodeURIComponent(url)}`;

@@ -1941,10 +1941,14 @@ function extractJimengFromLandingPayload(payload) {
   for (const item of candidates) {
     const metadata = item?.metadata || {};
     const urlCandidates = [
+      metadata?.download_info?.url,
+      metadata?.video_url,
       metadata?.origin_video?.url,
       metadata?.origin_video?.play_url,
       metadata?.video?.url,
       metadata?.video?.play_url,
+      item?.download_info?.url,
+      item?.video_url,
       item?.origin_video?.url,
       item?.origin_video?.play_url,
       item?.video?.url,
@@ -3470,6 +3474,7 @@ server.listen(PORT, () => {
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
 
 
 

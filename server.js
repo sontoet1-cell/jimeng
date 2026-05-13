@@ -1,4 +1,4 @@
-﻿const http = require("http");
+const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -911,6 +911,17 @@ function isOriginalQualityMarker(input) {
     || value.includes("best");
 }
 
+function isJimengWorkerStreamUrl(input) {
+  try {
+    const parsed = new URL(String(input || "").trim());
+    const host = String(parsed.hostname || "").toLowerCase();
+    const pathName = String(parsed.pathname || "").toLowerCase();
+    return host.endsWith("workers.dev") && pathName.includes("/stream");
+  } catch {
+    return false;
+  }
+}
+
 function qualityHeightOf(item) {
   if (isOriginalQualityMarker(item?.quality) || isOriginalQualityMarker(item?.label)) return 10000;
   return Number(item?.height)
@@ -922,10 +933,13 @@ function qualityHeightOf(item) {
 function scoreQuality(item) {
   const q = qualityHeightOf(item);
   const text = `${item.label || ""} ${item.quality || ""} ${item.url || ""}`.toLowerCase();
+  const size = Number(item?.size) || 0;
 
   let score = q * 4;
   if (q >= 720) score += 1200;
   if (isOriginalQualityMarker(item?.quality) || isOriginalQualityMarker(item?.label)) score += 20000;
+  if (isJimengWorkerStreamUrl(item?.url)) score += 40000;
+  if (size > 0) score += Math.min(15000, Math.floor(size / 1024));
 
   if (text.includes("hd")) score += 80;
   if (text.includes("sd")) score -= 30;
@@ -1786,6 +1800,7 @@ function parseSoraJsonPayload(payload) {
       width: 0,
       height: detectQualityNumber(u) || detectQualityNumber(key),
       fps: 0,
+      size: 0,
       has_audio: true,
       audio_url: "",
       watermark_status: "unknown"
@@ -1841,6 +1856,7 @@ function normalizeJimengSoraPayload(payload) {
       width: 0,
       height: isOriginalQualityMarker(label) ? 10000 : (detectQualityNumber(label) || detectQualityNumber(url)),
       fps: 0,
+      size: 0,
       has_audio: true,
       audio_url: "",
       watermark_status: "unknown"
@@ -1859,6 +1875,7 @@ function normalizeJimengSoraPayload(payload) {
       width: Number(item?.width) || 0,
       height: Number(item?.height) || detectQualityNumber(label) || detectQualityNumber(url),
       fps: Number(item?.fps) || 0,
+      size: Number(item?.size) || 0,
       has_audio: true,
       audio_url: "",
       watermark_status: "unknown"
@@ -1878,6 +1895,7 @@ function normalizeJimengSoraPayload(payload) {
       width: Number(item?.width) || 0,
       height: Number(item?.height) || detectQualityNumber(label) || detectQualityNumber(url),
       fps: Number(item?.fps) || 0,
+      size: Number(item?.size) || 0,
       has_audio: true,
       audio_url: "",
       watermark_status: "unknown"
@@ -2025,12 +2043,7 @@ async function resolveJimengViaLandingApi(url) {
 
 async function resolveViaSora(url, platform = "unknown") {
   if (platform === "jimeng") {
-    try {
-      const direct = await resolveJimengViaLandingApi(url);
-      if (direct?.qualities?.length) return direct;
-    } catch (error) {
-      console.warn(`[jimeng] landing-api failed: ${error?.message || error}`);
-    }
+    let lastJimengError = null;
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const response = await fetch("https://savevideoraw.com/apij.php", {
@@ -2045,11 +2058,12 @@ async function resolveViaSora(url, platform = "unknown") {
       });
 
       if (!response.ok) {
+        lastJimengError = createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status} .`.replace(' .', '.'));
         if (attempt === 0 && (response.status >= 500 || response.status === 429 || response.status === 415)) {
           await sleep(700);
           continue;
         }
-        throw createHttpError(502, `Jimeng gateway tra ve HTTP ${response.status}.`);
+        break;
       }
 
       const json = await response.json().catch(() => null);
@@ -2058,12 +2072,25 @@ async function resolveViaSora(url, platform = "unknown") {
         return normalizeVideoResult(normalized, url);
       }
 
+      lastJimengError = createHttpError(502, json?.error || "Jimeng gateway khong tra du lieu hop le.");
       if (attempt === 0) {
         await sleep(700);
         continue;
       }
-      throw createHttpError(502, json?.error || "Jimeng gateway khong tra du lieu hop le.");
+      break;
     }
+
+    try {
+      const direct = await resolveJimengViaLandingApi(url);
+      if (direct?.qualities?.length) return direct;
+    } catch (error) {
+      console.warn(`[jimeng] landing-api failed: ${error?.message || error}`);
+      if (!lastJimengError) {
+        lastJimengError = error?.statusCode ? error : createHttpError(502, error?.message || "Jimeng landing API that bai.");
+      }
+    }
+
+    throw lastJimengError || createHttpError(502, "Jimeng khong tra duoc nguon video hop le.");
   }
 
   const endpoint = `https://sora2dl.com/downloadi.php?url=${encodeURIComponent(url)}`;
@@ -2136,6 +2163,7 @@ async function resolveViaTikwm(url) {
       width: 0,
       height: detectQualityNumber(quality) || detectQualityNumber(u),
       fps: 0,
+      size: 0,
       has_audio: true,
       audio_url: "",
       watermark_status: "unknown"
@@ -2223,6 +2251,7 @@ async function resolveViaSaveTikDouyin(url) {
       width: 0,
       height,
       fps: 0,
+      size: 0,
       has_audio: true,
       audio_url: "",
       watermark_status: "unknown"

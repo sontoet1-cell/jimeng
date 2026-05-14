@@ -3314,41 +3314,52 @@ function getConvertedMimeType(targetFormat) {
   return "application/octet-stream";
 }
 
-async function runFfmpegConvertGeneric(inputPath, outputPath, targetFormat, options = {}) {
+async function runFfmpegCommand(args, failureMessage) {
   await new Promise((resolve, reject) => {
-    const audioBitrate = normalizeAudioBitrate(options.audioBitrate);
-    const videoPreset = normalizeVideoPreset(options.videoPreset);
-    const args = ["-y", "-i", inputPath];
-    if (targetFormat === "mp3") {
-      args.push("-vn", "-acodec", "libmp3lame", "-b:a", audioBitrate, "-map_metadata", "-1", outputPath);
-    } else if (targetFormat === "wav") {
-      args.push("-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-map_metadata", "-1", outputPath);
-    } else if (targetFormat === "m4a") {
-      args.push("-vn", "-c:a", "aac", "-b:a", audioBitrate, "-movflags", "+faststart", "-map_metadata", "-1", outputPath);
-    } else if (targetFormat === "mp4") {
+    const proc = spawn(ffmpegExecutable, args, { windowsHide: true });
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => { stderr += String(chunk || ""); });
+    proc.on("error", () => reject(createHttpError(500, failureMessage || "Không thể chạy ffmpeg để chuyển đổi file.")));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(createHttpError(500, `ffmpeg chuyển đổi thất bại (code ${code}). ${stderr.slice(-240)}`));
+    });
+  });
+}
+
+async function runFfmpegConvertGeneric(inputPath, outputPath, targetFormat, options = {}) {
+  const audioBitrate = normalizeAudioBitrate(options.audioBitrate);
+  const videoPreset = normalizeVideoPreset(options.videoPreset);
+
+  if (targetFormat === "mp3") {
+    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-acodec", "libmp3lame", "-b:a", audioBitrate, "-map_metadata", "-1", outputPath], "Không thể chạy ffmpeg để đổi sang MP3.");
+  }
+  if (targetFormat === "wav") {
+    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-map_metadata", "-1", outputPath], "Không thể chạy ffmpeg để đổi sang WAV.");
+  }
+  if (targetFormat === "m4a") {
+    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-c:a", "aac", "-b:a", audioBitrate, "-movflags", "+faststart", "-map_metadata", "-1", outputPath], "Không thể chạy ffmpeg để đổi sang M4A.");
+  }
+  if (targetFormat === "mp4") {
+    try {
+      await runFfmpegCommand(["-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", outputPath], "Không thể remux trực tiếp sang MP4.");
+      return;
+    } catch {
       const presetMap = {
         fast: { preset: "ultrafast", crf: "29" },
         balanced: { preset: "veryfast", crf: "24" },
         high: { preset: "medium", crf: "20" }
       };
       const cfg = presetMap[videoPreset] || presetMap.balanced;
-      args.push("-c:v", "libx264", "-preset", cfg.preset, "-crf", cfg.crf, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-map_metadata", "-1", outputPath);
-    } else if (targetFormat === "webm") {
-      const crfMap = { fast: "34", balanced: "30", high: "26" };
-      const crf = crfMap[videoPreset] || crfMap.balanced;
-      args.push("-c:v", "libvpx-vp9", "-crf", crf, "-b:v", "0", "-c:a", "libopus", "-b:a", "128k", "-map_metadata", "-1", outputPath);
-    } else {
-      return reject(createHttpError(400, "Định dạng đầu ra chưa được hỗ trợ."));
+      return runFfmpegCommand(["-y", "-i", inputPath, "-c:v", "libx264", "-preset", cfg.preset, "-crf", cfg.crf, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-map_metadata", "-1", outputPath], "Không thể encode lại sang MP4.");
     }
-    const proc = spawn(ffmpegExecutable, args, { windowsHide: true });
-    let stderr = "";
-    proc.stderr.on("data", (chunk) => { stderr += String(chunk || ""); });
-    proc.on("error", () => reject(createHttpError(500, "Không thể chạy ffmpeg để chuyển đổi file.")));
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(createHttpError(500, `ffmpeg chuyển đổi thất bại (code ${code}). ${stderr.slice(-240)}`));
-    });
-  });
+  }
+  if (targetFormat === "webm") {
+    const crfMap = { fast: "34", balanced: "30", high: "26" };
+    const crf = crfMap[videoPreset] || crfMap.balanced;
+    return runFfmpegCommand(["-y", "-i", inputPath, "-c:v", "libvpx-vp9", "-crf", crf, "-b:v", "0", "-c:a", "libopus", "-b:a", "128k", "-map_metadata", "-1", outputPath], "Không thể encode sang WebM.");
+  }
+  throw createHttpError(400, "Định dạng đầu ra chưa được hỗ trợ.");
 }
 
 async function handleUploadedConversion(req, res, forcedTarget = "") {

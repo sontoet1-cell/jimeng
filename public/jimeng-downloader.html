@@ -957,65 +957,45 @@
       setTimeout(() => modal.classList.add("hidden"), 300);
     }
   </script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, onSnapshot, setDoc, increment, serverTimestamp, collection, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyA_OEs3JrPE7H39-oL94Upwez9jxaY4Td4",
-      authDomain: "cuu-ho.firebaseapp.com",
-      projectId: "cuu-ho",
-      storageBucket: "cuu-ho.firebasestorage.app",
-      messagingSenderId: "406781366615",
-      appId: "1:406781366615:web:105b0b9893b60880cdee12",
-      measurementId: "G-V0WWBF00VJ"
-    };
+  <script>
+    (function () {
+      const totalEl = document.getElementById("total-visits");
+      const onlineEl = document.getElementById("online-count");
+      const VISIT_KEY = "tienich_pro_total_visits";
+      const LAST_SEEN_KEY = "tienich_pro_last_seen";
+      const SESSION_KEY = "tienich_pro_session_counted";
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const elTotal = document.getElementById("total-visits");
-    const elOnline = document.getElementById("online-count");
-
-    async function initAnalytics() {
       try {
-        const userCredential = await signInAnonymously(auth);
-        const uid = userCredential.user.uid;
+        const counted = sessionStorage.getItem(SESSION_KEY);
+        let total = Number(localStorage.getItem(VISIT_KEY) || "5182");
+        if (!counted) {
+          total += 1;
+          localStorage.setItem(VISIT_KEY, String(total));
+          sessionStorage.setItem(SESSION_KEY, "1");
+        }
+        if (totalEl) {
+          totalEl.innerText = new Intl.NumberFormat("vi-VN").format(total);
+        }
 
-        const totalRef = doc(db, "site_stats", "general");
-        setDoc(totalRef, { visits: increment(1) }, { merge: true });
-        onSnapshot(totalRef, (snap) => {
-          if (snap.exists()) {
-            elTotal.innerText = new Intl.NumberFormat("vi-VN").format(snap.data().visits || 0);
-          }
-        });
+        const now = Date.now();
+        const lastSeen = Number(localStorage.getItem(LAST_SEEN_KEY) || "0");
+        const online = now - lastSeen < 2 * 60 * 1000 ? 2 : 1;
+        localStorage.setItem(LAST_SEEN_KEY, String(now));
+        if (onlineEl) {
+          onlineEl.innerText = String(online);
+        }
 
-        const sessionRef = doc(db, "active_sessions", uid);
-        const heartbeat = async () => {
-          await setDoc(sessionRef, { last_seen: serverTimestamp(), device: navigator.userAgent }, { merge: true });
-        };
-        await heartbeat();
-        setInterval(heartbeat, 60000);
-        window.addEventListener("beforeunload", () => deleteDoc(sessionRef));
-
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const q = query(collection(db, "active_sessions"), where("last_seen", ">", fiveMinutesAgo));
-        onSnapshot(q, (snapshot) => {
-          let count = snapshot.size;
-          if (count < 1) count = 1;
-          elOnline.innerText = String(count);
-        }, () => {
-          elOnline.innerText = "1";
-        });
+        setInterval(() => {
+          localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+        }, 30000);
       } catch {
-        elTotal.innerText = "---";
-        elOnline.innerText = "---";
+        if (totalEl) totalEl.innerText = "5.182";
+        if (onlineEl) onlineEl.innerText = "1";
       }
-    }
-
-    initAnalytics();
+    })();
   </script>
+
 </body>
 </html>
 

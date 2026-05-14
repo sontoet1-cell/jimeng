@@ -2894,6 +2894,16 @@ function sanitizeFilename(input) {
   return /^tienich\.pro_/i.test(withExt) ? withExt : `tienich.pro_${withExt}`;
 }
 
+function sanitizeMp3Filename(input) {
+  const raw = String(input || "").trim();
+  const cleaned = (raw || `tienich.pro_${Date.now()}`)
+    .replace(/[<>:"/\|?*\x00-\x1F]/g, "_")
+    .replace(/\.[a-z0-9]{2,5}$/i, "")
+    .slice(0, 120);
+  const withExt = `${cleaned || `tienich.pro_${Date.now()}`}.mp3`;
+  return /^tienich\.pro_/i.test(withExt) ? withExt : `tienich.pro_${withExt}`;
+}
+
 function buildSourceHeaders(sourceUrl, refererOverride = "") {
   const headers = { ...DEFAULT_HEADERS };
   try {
@@ -3242,61 +3252,175 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/convert-mp3") {
-    try {
-      const rawBody = await readRequestBody(req, 80 * 1024 * 1024);
-      const body = rawBody ? JSON.parse(rawBody) : {};
-      const dataUrl = typeof body.data_url === "string" ? body.data_url.trim() : "";
-      const filename = sanitizeMp3Filename(body.filename || "audio.mp3");
 
-      if (!dataUrl) return sendJson(res, 400, { error: "Thieu data_url." });
-      if (!hasFfmpeg()) return sendJson(res, 501, { error: "May chu local chua co ffmpeg de convert MP3." });
+function sanitizeConvertedFilename(input, targetFormat) {
+  const raw = String(input || "").trim();
+  const safeExt = String(targetFormat || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const cleaned = (raw || `tienich.pro_${Date.now()}`)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .replace(/\.[a-z0-9]{2,8}$/i, "")
+    .slice(0, 120);
+  const withExt = `${cleaned || `tienich.pro_${Date.now()}`}.${safeExt}`;
+  return /^tienich\.pro_/i.test(withExt) ? withExt : `tienich.pro_${withExt}`;
+}
 
-      const dataMatch = dataUrl.match(/^data:([^;,]+)?;base64,(.+)$/);
-      const base64 = dataMatch ? dataMatch[2] : dataUrl;
-      const mimeType = dataMatch ? String(dataMatch[1] || "application/octet-stream") : "application/octet-stream";
-      const inputBuffer = Buffer.from(base64, "base64");
-      if (!inputBuffer.length) return sendJson(res, 400, { error: "File upload khong hop le." });
-      if (inputBuffer.length > 50 * 1024 * 1024) return sendJson(res, 413, { error: "File qua lon. Tam thoi chi nen convert file duoi 50MB khi chay local." });
+function inferUploadedInputExtension(filename, mimeType) {
+  const extFromName = path.extname(String(filename || "")).toLowerCase();
+  if (extFromName) return extFromName;
+  const mime = String(mimeType || "").toLowerCase();
+  if (mime.includes("mp4")) return ".mp4";
+  if (mime.includes("quicktime")) return ".mov";
+  if (mime.includes("webm")) return ".webm";
+  if (mime.includes("x-matroska")) return ".mkv";
+  if (mime.includes("mpeg")) return ".mp3";
+  if (mime.includes("wav")) return ".wav";
+  if (mime.includes("x-m4a") || mime.includes("mp4a") || mime.includes("aac")) return ".m4a";
+  if (mime.includes("ogg")) return ".ogg";
+  if (mime.includes("flac")) return ".flac";
+  if (mime.includes("avi")) return ".avi";
+  if (mime.includes("image/png")) return ".png";
+  if (mime.includes("image/jpeg")) return ".jpg";
+  return ".bin";
+}
 
-      const extFromName = path.extname(String(body.filename || "")).toLowerCase();
-      const extFromMime = mimeType.includes("mp4") ? ".mp4" : mimeType.includes("webm") ? ".webm" : mimeType.includes("wav") ? ".wav" : mimeType.includes("mpeg") ? ".mp3" : mimeType.includes("ogg") ? ".ogg" : mimeType.includes("x-m4a") || mimeType.includes("mp4a") ? ".m4a" : ".bin";
-      const inputExt = extFromName || extFromMime;
+function normalizeTargetFormat(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  return ["mp3", "wav", "m4a", "mp4", "webm"].includes(value) ? value : "mp3";
+}
 
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tienich-mp3-"));
-      const inputPath = path.join(tempDir, `input${inputExt}`);
-      const outputPath = path.join(tempDir, "output.mp3");
+function normalizeAudioBitrate(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  return ["128k", "192k", "320k"].includes(value) ? value : "192k";
+}
 
-      try {
-        fs.writeFileSync(inputPath, inputBuffer);
-        await runFfmpegConvertToMp3(inputPath, outputPath);
-        const stat = fs.statSync(outputPath);
-        res.writeHead(200, {
-          "Content-Type": "audio/mpeg",
-          "Content-Disposition": `attachment; filename="${filename}"`,
-          "Content-Length": stat.size,
-          "Cache-Control": "no-store"
-        });
-        const stream = fs.createReadStream(outputPath);
-        stream.on("close", async () => {
-          await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-        });
-        stream.on("error", async () => {
-          await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-          if (!res.headersSent) sendJson(res, 500, { error: "Khong doc duoc file MP3 da convert." });
-          else res.destroy();
-        });
-        stream.pipe(res);
-      } catch (error) {
-        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-        throw error;
-      }
-    } catch (error) {
-      const statusCode = Number(error?.statusCode) || (String(error?.message || "").includes("Payload too large") ? 413 : 500);
-      sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, {
-        error: sanitizeClientErrorMessage(error?.message || "Khong the convert file sang MP3.")
-      });
+function normalizeVideoPreset(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  return ["fast", "balanced", "high"].includes(value) ? value : "balanced";
+}
+
+function isVideoLikeUpload(filename, mimeType) {
+  const lowerName = String(filename || "").toLowerCase();
+  const lowerMime = String(mimeType || "").toLowerCase();
+  if (lowerMime.startsWith("video/")) return true;
+  return /\.(mp4|mov|mkv|avi|webm|m4v)$/i.test(lowerName);
+}
+
+function getConvertedMimeType(targetFormat) {
+  if (targetFormat === "mp3") return "audio/mpeg";
+  if (targetFormat === "wav") return "audio/wav";
+  if (targetFormat === "m4a") return "audio/mp4";
+  if (targetFormat === "mp4") return "video/mp4";
+  if (targetFormat === "webm") return "video/webm";
+  return "application/octet-stream";
+}
+
+async function runFfmpegConvertGeneric(inputPath, outputPath, targetFormat, options = {}) {
+  await new Promise((resolve, reject) => {
+    const audioBitrate = normalizeAudioBitrate(options.audioBitrate);
+    const videoPreset = normalizeVideoPreset(options.videoPreset);
+    const args = ["-y", "-i", inputPath];
+    if (targetFormat === "mp3") {
+      args.push("-vn", "-acodec", "libmp3lame", "-b:a", audioBitrate, "-map_metadata", "-1", outputPath);
+    } else if (targetFormat === "wav") {
+      args.push("-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-map_metadata", "-1", outputPath);
+    } else if (targetFormat === "m4a") {
+      args.push("-vn", "-c:a", "aac", "-b:a", audioBitrate, "-movflags", "+faststart", "-map_metadata", "-1", outputPath);
+    } else if (targetFormat === "mp4") {
+      const presetMap = {
+        fast: { preset: "ultrafast", crf: "29" },
+        balanced: { preset: "veryfast", crf: "24" },
+        high: { preset: "medium", crf: "20" }
+      };
+      const cfg = presetMap[videoPreset] || presetMap.balanced;
+      args.push("-c:v", "libx264", "-preset", cfg.preset, "-crf", cfg.crf, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-map_metadata", "-1", outputPath);
+    } else if (targetFormat === "webm") {
+      const crfMap = { fast: "34", balanced: "30", high: "26" };
+      const crf = crfMap[videoPreset] || crfMap.balanced;
+      args.push("-c:v", "libvpx-vp9", "-crf", crf, "-b:v", "0", "-c:a", "libopus", "-b:a", "128k", "-map_metadata", "-1", outputPath);
+    } else {
+      return reject(createHttpError(400, "Định dạng đầu ra chưa được hỗ trợ."));
     }
+    const proc = spawn(ffmpegExecutable, args, { windowsHide: true });
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => { stderr += String(chunk || ""); });
+    proc.on("error", () => reject(createHttpError(500, "Không thể chạy ffmpeg để chuyển đổi file.")));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(createHttpError(500, `ffmpeg chuyển đổi thất bại (code ${code}). ${stderr.slice(-240)}`));
+    });
+  });
+}
+
+async function handleUploadedConversion(req, res, forcedTarget = "") {
+  try {
+    const rawBody = await readRequestBody(req, 80 * 1024 * 1024);
+    const body = rawBody ? JSON.parse(rawBody) : {};
+    const dataUrl = typeof body.data_url === "string" ? body.data_url.trim() : "";
+    const targetFormat = forcedTarget || normalizeTargetFormat(body.target_format);
+    const filename = sanitizeConvertedFilename(body.filename || "media", targetFormat);
+    const audioBitrate = normalizeAudioBitrate(body.audio_bitrate);
+    const videoPreset = normalizeVideoPreset(body.video_preset);
+
+    if (!dataUrl) return sendJson(res, 400, { error: "Thiếu dữ liệu file đầu vào." });
+    if (!hasFfmpeg()) return sendJson(res, 501, { error: "Máy local chưa có ffmpeg để chuyển đổi." });
+
+    const dataMatch = dataUrl.match(/^data:([^;,]+)?;base64,(.+)$/);
+    const base64 = dataMatch ? dataMatch[2] : dataUrl;
+    const mimeType = dataMatch ? String(dataMatch[1] || "application/octet-stream") : "application/octet-stream";
+    const inputBuffer = Buffer.from(base64, "base64");
+    if (!inputBuffer.length) return sendJson(res, 400, { error: "File upload không hợp lệ." });
+    if (inputBuffer.length > 80 * 1024 * 1024) {
+      return sendJson(res, 413, { error: "File quá lớn. Tạm thời nên dùng file dưới 80MB khi chạy local." });
+    }
+    if ((targetFormat === "mp4" || targetFormat === "webm") && !isVideoLikeUpload(body.filename, mimeType)) {
+      return sendJson(res, 400, { error: "Đầu ra MP4 hoặc WebM chỉ áp dụng cho file video." });
+    }
+
+    const inputExt = inferUploadedInputExtension(body.filename, mimeType);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tienich-convert-"));
+    const inputPath = path.join(tempDir, `input${inputExt}`);
+    const outputPath = path.join(tempDir, `output.${targetFormat}`);
+
+    try {
+      fs.writeFileSync(inputPath, inputBuffer);
+      await runFfmpegConvertGeneric(inputPath, outputPath, targetFormat, { audioBitrate, videoPreset });
+      const stat = fs.statSync(outputPath);
+      res.writeHead(200, {
+        "Content-Type": getConvertedMimeType(targetFormat),
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": stat.size,
+        "Cache-Control": "no-store"
+      });
+      const stream = fs.createReadStream(outputPath);
+      stream.on("close", async () => {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      });
+      stream.on("error", async () => {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        if (!res.headersSent) sendJson(res, 500, { error: "Không đọc được file đầu ra." });
+        else res.destroy();
+      });
+      stream.pipe(res);
+    } catch (error) {
+      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      throw error;
+    }
+  } catch (error) {
+    const statusCode = Number(error?.statusCode) || (String(error?.message || "").includes("Payload too large") ? 413 : 500);
+    sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, {
+      error: sanitizeClientErrorMessage(error?.message || "Không thể chuyển đổi file lúc này.")
+    });
+  }
+}
+
+
+  if (req.method === "POST" && req.url === "/api/convert-file") {
+    await handleUploadedConversion(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/convert-mp3") {
+    await handleUploadedConversion(req, res, "mp3");
     return;
   }
 

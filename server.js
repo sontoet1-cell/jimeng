@@ -2995,6 +2995,28 @@ async function runFfmpegMerge(videoPath, audioPath, outputPath, onProgress) {
   });
 }
 
+async function runFfmpegConvertToMp3(inputPath, outputPath) {
+  await new Promise((resolve, reject) => {
+    const args = [
+      "-y",
+      "-i", inputPath,
+      "-vn",
+      "-acodec", "libmp3lame",
+      "-b:a", "192k",
+      "-map_metadata", "-1",
+      outputPath
+    ];
+    const proc = spawn(ffmpegExecutable, args, { windowsHide: true });
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => { stderr += String(chunk || ""); });
+    proc.on("error", () => reject(createHttpError(500, "Khong the chay ffmpeg de convert MP3.")));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(createHttpError(500, `ffmpeg convert MP3 that bai (code ${code}). ${stderr.slice(-240)}`));
+    });
+  });
+}
+
 async function mergeAudioVideo(videoUrl, audioUrl) {
   if (!hasFfmpeg()) {
     throw createHttpError(501, "Can cai ffmpeg de ghep video 1080 voi audio.");
@@ -3095,12 +3117,12 @@ function serveStaticFile(req, res) {
   });
 }
 
-function readRequestBody(req) {
+function readRequestBody(req, limitBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let raw = "";
     req.on("data", (chunk) => {
       raw += chunk;
-      if (raw.length > 1024 * 1024) {
+      if (raw.length > limitBytes) {
         reject(new Error("Payload too large"));
         req.destroy();
       }
@@ -3217,6 +3239,64 @@ const server = http.createServer(async (req, res) => {
       reclipJobs.delete(id);
     });
     stream.pipe(res);
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/convert-mp3") {
+    try {
+      const rawBody = await readRequestBody(req, 80 * 1024 * 1024);
+      const body = rawBody ? JSON.parse(rawBody) : {};
+      const dataUrl = typeof body.data_url === "string" ? body.data_url.trim() : "";
+      const filename = sanitizeMp3Filename(body.filename || "audio.mp3");
+
+      if (!dataUrl) return sendJson(res, 400, { error: "Thieu data_url." });
+      if (!hasFfmpeg()) return sendJson(res, 501, { error: "May chu local chua co ffmpeg de convert MP3." });
+
+      const dataMatch = dataUrl.match(/^data:([^;,]+)?;base64,(.+)$/);
+      const base64 = dataMatch ? dataMatch[2] : dataUrl;
+      const mimeType = dataMatch ? String(dataMatch[1] || "application/octet-stream") : "application/octet-stream";
+      const inputBuffer = Buffer.from(base64, "base64");
+      if (!inputBuffer.length) return sendJson(res, 400, { error: "File upload khong hop le." });
+      if (inputBuffer.length > 50 * 1024 * 1024) return sendJson(res, 413, { error: "File qua lon. Tam thoi chi nen convert file duoi 50MB khi chay local." });
+
+      const extFromName = path.extname(String(body.filename || "")).toLowerCase();
+      const extFromMime = mimeType.includes("mp4") ? ".mp4" : mimeType.includes("webm") ? ".webm" : mimeType.includes("wav") ? ".wav" : mimeType.includes("mpeg") ? ".mp3" : mimeType.includes("ogg") ? ".ogg" : mimeType.includes("x-m4a") || mimeType.includes("mp4a") ? ".m4a" : ".bin";
+      const inputExt = extFromName || extFromMime;
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tienich-mp3-"));
+      const inputPath = path.join(tempDir, `input${inputExt}`);
+      const outputPath = path.join(tempDir, "output.mp3");
+
+      try {
+        fs.writeFileSync(inputPath, inputBuffer);
+        await runFfmpegConvertToMp3(inputPath, outputPath);
+        const stat = fs.statSync(outputPath);
+        res.writeHead(200, {
+          "Content-Type": "audio/mpeg",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Content-Length": stat.size,
+          "Cache-Control": "no-store"
+        });
+        const stream = fs.createReadStream(outputPath);
+        stream.on("close", async () => {
+          await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        });
+        stream.on("error", async () => {
+          await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+          if (!res.headersSent) sendJson(res, 500, { error: "Khong doc duoc file MP3 da convert." });
+          else res.destroy();
+        });
+        stream.pipe(res);
+      } catch (error) {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+      }
+    } catch (error) {
+      const statusCode = Number(error?.statusCode) || (String(error?.message || "").includes("Payload too large") ? 413 : 500);
+      sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, {
+        error: sanitizeClientErrorMessage(error?.message || "Khong the convert file sang MP3.")
+      });
+    }
     return;
   }
 

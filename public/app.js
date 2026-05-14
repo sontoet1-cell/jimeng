@@ -237,6 +237,62 @@ async function resolveJimengInBrowser(url) {
 }
 
 
+async function readFileAsDataUrl(file) {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Khong doc duoc file tren trinh duyet."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function setMp3Status(message, ok = false) {
+  if (!mp3StatusEl) return;
+  mp3StatusEl.textContent = message;
+  mp3StatusEl.style.color = ok ? "#22c55e" : "#facc15";
+}
+
+async function handleMp3Convert() {
+  if (!mp3FileInput || !mp3ConvertBtn) return;
+  const file = mp3FileInput.files && mp3FileInput.files[0];
+  if (!file) {
+    setMp3Status("Vui long chon file audio hoac video truoc.");
+    return;
+  }
+  mp3ConvertBtn.disabled = true;
+  setMp3Status(`Dang convert ${file.name} sang MP3...`);
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const response = await fetch("/api/convert-mp3", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: file.name,
+        data_url: dataUrl
+      })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || `HTTP ${response.status}: Khong the convert MP3.`);
+    }
+    const blob = await response.blob();
+    const downloadName = String(file.name || "audio").replace(/.[a-z0-9]{2,5}$/i, "") + ".mp3";
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = downloadName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+    setMp3Status("Convert xong. File MP3 dang duoc tai xuong.", true);
+  } catch (error) {
+    setMp3Status(error.message || "Khong the convert file sang MP3.");
+  } finally {
+    mp3ConvertBtn.disabled = false;
+  }
+}
+
 function detectQuality(item, fallbackIndex) {
   const candidates = [item?.quality, item?.label, item?.url, ""];
   for (const source of candidates) {

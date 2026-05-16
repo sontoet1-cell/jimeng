@@ -1,4 +1,4 @@
-const http = require("http");
+﻿const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -41,6 +41,25 @@ try {
   // Ignore temp-dir initialization errors.
 }
 
+const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || "https://cogihot.vn,https://www.cogihot.vn,http://localhost:10000,http://127.0.0.1:10000")
+  .split(",")
+  .map((value) => String(value || "").trim())
+  .filter(Boolean);
+
+function getAllowedCorsOrigin(req) {
+  const origin = String(req?.headers?.origin || "").trim();
+  if (!origin) return "";
+  return FRONTEND_ORIGINS.includes(origin) ? origin : "";
+}
+
+function applyCorsHeaders(req, res) {
+  const allowedOrigin = getAllowedCorsOrigin(req);
+  if (!allowedOrigin) return;
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+}
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -3143,6 +3162,13 @@ function readRequestBody(req, limitBytes = 1024 * 1024) {
 }
 
 const server = http.createServer(async (req, res) => {
+  applyCorsHeaders(req, res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
   if ((req.method === "GET" || req.method === "HEAD") && req.url === "/healthz") {
     if (req.method === "HEAD") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
@@ -3319,10 +3345,10 @@ async function runFfmpegCommand(args, failureMessage) {
     const proc = spawn(ffmpegExecutable, args, { windowsHide: true });
     let stderr = "";
     proc.stderr.on("data", (chunk) => { stderr += String(chunk || ""); });
-    proc.on("error", () => reject(createHttpError(500, failureMessage || "Không thể chạy ffmpeg để chuyển đổi file.")));
+    proc.on("error", () => reject(createHttpError(500, failureMessage || "KhÃ´ng thá»ƒ cháº¡y ffmpeg Ä‘á»ƒ chuyá»ƒn Ä‘á»•i file.")));
     proc.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(createHttpError(500, `ffmpeg chuyển đổi thất bại (code ${code}). ${stderr.slice(-240)}`));
+      else reject(createHttpError(500, `ffmpeg chuyá»ƒn Ä‘á»•i tháº¥t báº¡i (code ${code}). ${stderr.slice(-240)}`));
     });
   });
 }
@@ -3332,17 +3358,17 @@ async function runFfmpegConvertGeneric(inputPath, outputPath, targetFormat, opti
   const videoPreset = normalizeVideoPreset(options.videoPreset);
 
   if (targetFormat === "mp3") {
-    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-acodec", "libmp3lame", "-b:a", audioBitrate, "-map_metadata", "-1", outputPath], "Không thể chạy ffmpeg để đổi sang MP3.");
+    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-acodec", "libmp3lame", "-b:a", audioBitrate, "-map_metadata", "-1", outputPath], "KhÃ´ng thá»ƒ cháº¡y ffmpeg Ä‘á»ƒ Ä‘á»•i sang MP3.");
   }
   if (targetFormat === "wav") {
-    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-map_metadata", "-1", outputPath], "Không thể chạy ffmpeg để đổi sang WAV.");
+    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-map_metadata", "-1", outputPath], "KhÃ´ng thá»ƒ cháº¡y ffmpeg Ä‘á»ƒ Ä‘á»•i sang WAV.");
   }
   if (targetFormat === "m4a") {
-    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-c:a", "aac", "-b:a", audioBitrate, "-movflags", "+faststart", "-map_metadata", "-1", outputPath], "Không thể chạy ffmpeg để đổi sang M4A.");
+    return runFfmpegCommand(["-y", "-i", inputPath, "-vn", "-c:a", "aac", "-b:a", audioBitrate, "-movflags", "+faststart", "-map_metadata", "-1", outputPath], "KhÃ´ng thá»ƒ cháº¡y ffmpeg Ä‘á»ƒ Ä‘á»•i sang M4A.");
   }
   if (targetFormat === "mp4") {
     try {
-      await runFfmpegCommand(["-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", outputPath], "Không thể remux trực tiếp sang MP4.");
+      await runFfmpegCommand(["-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", outputPath], "KhÃ´ng thá»ƒ remux trá»±c tiáº¿p sang MP4.");
       return;
     } catch {
       const presetMap = {
@@ -3351,15 +3377,15 @@ async function runFfmpegConvertGeneric(inputPath, outputPath, targetFormat, opti
         high: { preset: "medium", crf: "20" }
       };
       const cfg = presetMap[videoPreset] || presetMap.balanced;
-      return runFfmpegCommand(["-y", "-i", inputPath, "-c:v", "libx264", "-preset", cfg.preset, "-crf", cfg.crf, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-map_metadata", "-1", outputPath], "Không thể encode lại sang MP4.");
+      return runFfmpegCommand(["-y", "-i", inputPath, "-c:v", "libx264", "-preset", cfg.preset, "-crf", cfg.crf, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-map_metadata", "-1", outputPath], "KhÃ´ng thá»ƒ encode láº¡i sang MP4.");
     }
   }
   if (targetFormat === "webm") {
     const crfMap = { fast: "34", balanced: "30", high: "26" };
     const crf = crfMap[videoPreset] || crfMap.balanced;
-    return runFfmpegCommand(["-y", "-i", inputPath, "-c:v", "libvpx-vp9", "-crf", crf, "-b:v", "0", "-c:a", "libopus", "-b:a", "128k", "-map_metadata", "-1", outputPath], "Không thể encode sang WebM.");
+    return runFfmpegCommand(["-y", "-i", inputPath, "-c:v", "libvpx-vp9", "-crf", crf, "-b:v", "0", "-c:a", "libopus", "-b:a", "128k", "-map_metadata", "-1", outputPath], "KhÃ´ng thá»ƒ encode sang WebM.");
   }
-  throw createHttpError(400, "Định dạng đầu ra chưa được hỗ trợ.");
+  throw createHttpError(400, "Äá»‹nh dáº¡ng Ä‘áº§u ra chÆ°a Ä‘Æ°á»£c há»— trá»£.");
 }
 
 async function handleUploadedConversion(req, res, forcedTarget = "") {
@@ -3372,19 +3398,19 @@ async function handleUploadedConversion(req, res, forcedTarget = "") {
     const audioBitrate = normalizeAudioBitrate(body.audio_bitrate);
     const videoPreset = normalizeVideoPreset(body.video_preset);
 
-    if (!dataUrl) return sendJson(res, 400, { error: "Thiếu dữ liệu file đầu vào." });
-    if (!hasFfmpeg()) return sendJson(res, 501, { error: "Máy local chưa có ffmpeg để chuyển đổi." });
+    if (!dataUrl) return sendJson(res, 400, { error: "Thiáº¿u dá»¯ liá»‡u file Ä‘áº§u vÃ o." });
+    if (!hasFfmpeg()) return sendJson(res, 501, { error: "MÃ¡y local chÆ°a cÃ³ ffmpeg Ä‘á»ƒ chuyá»ƒn Ä‘á»•i." });
 
     const dataMatch = dataUrl.match(/^data:([^;,]+)?;base64,(.+)$/);
     const base64 = dataMatch ? dataMatch[2] : dataUrl;
     const mimeType = dataMatch ? String(dataMatch[1] || "application/octet-stream") : "application/octet-stream";
     const inputBuffer = Buffer.from(base64, "base64");
-    if (!inputBuffer.length) return sendJson(res, 400, { error: "File upload không hợp lệ." });
+    if (!inputBuffer.length) return sendJson(res, 400, { error: "File upload khÃ´ng há»£p lá»‡." });
     if (inputBuffer.length > 80 * 1024 * 1024) {
-      return sendJson(res, 413, { error: "File quá lớn. Tạm thời nên dùng file dưới 80MB khi chạy local." });
+      return sendJson(res, 413, { error: "File quÃ¡ lá»›n. Táº¡m thá»i nÃªn dÃ¹ng file dÆ°á»›i 80MB khi cháº¡y local." });
     }
     if ((targetFormat === "mp4" || targetFormat === "webm") && !isVideoLikeUpload(body.filename, mimeType)) {
-      return sendJson(res, 400, { error: "Đầu ra MP4 hoặc WebM chỉ áp dụng cho file video." });
+      return sendJson(res, 400, { error: "Äáº§u ra MP4 hoáº·c WebM chá»‰ Ã¡p dá»¥ng cho file video." });
     }
 
     const inputExt = inferUploadedInputExtension(body.filename, mimeType);
@@ -3408,7 +3434,7 @@ async function handleUploadedConversion(req, res, forcedTarget = "") {
       });
       stream.on("error", async () => {
         await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-        if (!res.headersSent) sendJson(res, 500, { error: "Không đọc được file đầu ra." });
+        if (!res.headersSent) sendJson(res, 500, { error: "KhÃ´ng Ä‘á»c Ä‘Æ°á»£c file Ä‘áº§u ra." });
         else res.destroy();
       });
       stream.pipe(res);
@@ -3419,7 +3445,7 @@ async function handleUploadedConversion(req, res, forcedTarget = "") {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || (String(error?.message || "").includes("Payload too large") ? 413 : 500);
     sendJson(res, statusCode >= 400 && statusCode < 600 ? statusCode : 500, {
-      error: sanitizeClientErrorMessage(error?.message || "Không thể chuyển đổi file lúc này.")
+      error: sanitizeClientErrorMessage(error?.message || "KhÃ´ng thá»ƒ chuyá»ƒn Ä‘á»•i file lÃºc nÃ y.")
     });
   }
 }
@@ -3749,6 +3775,7 @@ server.listen(PORT, () => {
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
 
 
 

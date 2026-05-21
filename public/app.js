@@ -219,21 +219,21 @@ async function resolveJimengInBrowser(url) {
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || "Khong the xu ly link Jimeng."}`);
+        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || "Kh?ng th? x? l? link Jimeng."}`);
       }
       const normalized = normalizeJimengBrowserPayload(payload, url);
       if (normalized?.qualities?.length) return normalized;
-      throw new Error(payload?.error || payload?.message || "Jimeng khong tra du lieu hop le.");
+      throw new Error(payload?.error || payload?.message || "Jimeng kh?ng tr? d? li?u h?p l?.");
     } catch (error) {
       lastError = error;
       if (attempt === 0) {
-        setStatus("Jimeng dang thu lai tu trinh duyet...");
+        setStatus("Jimeng đang thử lại từ trình duyệt...");
         await sleep(700);
         continue;
       }
     }
   }
-  throw lastError || new Error("Khong the xu ly link Jimeng.");
+  throw lastError || new Error("Kh?ng th? x? l? link Jimeng.");
 }
 
 
@@ -241,7 +241,7 @@ async function readFileAsDataUrl(file) {
   return await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Khong doc duoc file tren trinh duyet."));
+    reader.onerror = () => reject(new Error("Không đọc được file trên trình duyệt."));
     reader.readAsDataURL(file);
   });
 }
@@ -260,7 +260,7 @@ async function handleMp3Convert() {
     return;
   }
   mp3ConvertBtn.disabled = true;
-  setMp3Status(`Dang convert ${file.name} sang MP3...`);
+  setMp3Status(`Đang convert ${file.name} sang MP3...`);
   try {
     const dataUrl = await readFileAsDataUrl(file);
     const response = await fetch("/api/convert-mp3", {
@@ -273,7 +273,7 @@ async function handleMp3Convert() {
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload?.error || `HTTP ${response.status}: Khong the convert MP3.`);
+      throw new Error(payload?.error || `HTTP ${response.status}: Không thể convert MP3.`);
     }
     const blob = await response.blob();
     const downloadName = String(file.name || "audio").replace(/.[a-z0-9]{2,5}$/i, "") + ".mp3";
@@ -285,9 +285,9 @@ async function handleMp3Convert() {
     a.click();
     a.remove();
     URL.revokeObjectURL(objectUrl);
-    setMp3Status("Convert xong. File MP3 dang duoc tai xuong.", true);
+    setMp3Status("Convert xong. File MP3 đang được tải xuống.", true);
   } catch (error) {
-    setMp3Status(error.message || "Khong the convert file sang MP3.");
+    setMp3Status(error.message || "Không thể convert file sang MP3.");
   } finally {
     mp3ConvertBtn.disabled = false;
   }
@@ -363,11 +363,11 @@ async function resolveWithRetry(url) {
 
       if (!response.ok) {
         if (response.status >= 500 && attempt === 0) {
-          setStatus(`May chu loi ${response.status}, dang thu lai...`);
+          setStatus(`Máy chủ lỗi ${response.status}, đang thử lại...`);
           await sleep(900);
           continue;
         }
-        throw new Error(`HTTP ${response.status}: ${payload?.error || "Khong the xu ly link nay."}`);
+        throw new Error(`HTTP ${response.status}: ${payload?.error || "Kh?ng th? x? l? link n?y."}`);
       }
 
       return payload || {};
@@ -376,14 +376,14 @@ async function resolveWithRetry(url) {
       const message = String(error?.message || "").toLowerCase();
       const retryable = message.includes("failed to fetch") || message.includes("network");
       if (retryable && attempt === 0) {
-        setStatus("Ket noi khong on dinh, dang thu lai...");
+        setStatus("Kết nối không ổn định, đang thử lại...");
         await sleep(900);
         continue;
       }
       throw error;
     }
   }
-  throw lastError || new Error("Khong the xu ly link nay.");
+  throw lastError || new Error("Kh?ng th? x? l? link n?y.");
 }
 
 async function createProcessJob(item, itemId) {
@@ -579,12 +579,12 @@ if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${payload?.error || "Khong truy van duoc Facebook ID."}`);
+        throw new Error(`HTTP ${response.status}: ${payload?.error || "Không truy vấn được Facebook ID."}`);
       }
 
       const id = String(payload.id || "").trim();
       const username = String(payload.username || "").trim();
-      if (!id) throw new Error("Khong tim thay Facebook ID.");
+      if (!id) throw new Error("Không tìm thấy Facebook ID.");
       currentFacebookId = id;
 
       fbIdResult.textContent = username
@@ -594,7 +594,7 @@ if (fbIdForm && fbIdInput && fbIdBtn && fbIdResult) {
       if (fbIdCopyBtn) fbIdCopyBtn.classList.remove("hidden");
     } catch (error) {
       currentFacebookId = "";
-      fbIdResult.textContent = error.message || "Khong truy van duoc Facebook ID.";
+      fbIdResult.textContent = error.message || "Không truy vấn được Facebook ID.";
       fbIdResult.style.color = "#f87171";
       if (fbIdCopyBtn) fbIdCopyBtn.classList.add("hidden");
     } finally {
@@ -676,7 +676,7 @@ function parseAuthenticatorSecret(input) {
 
 async function generateTotp(secret, period = 30, digits = 6) {
   const keyBytes = base32ToBytes(secret);
-  if (!keyBytes.length) throw new Error("Secret key khong hop le.");
+  if (!keyBytes.length) throw new Error("Secret key không hợp lệ.");
 
   const epoch = Math.floor(Date.now() / 1000);
   const counter = Math.floor(epoch / period);

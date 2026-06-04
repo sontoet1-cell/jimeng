@@ -478,11 +478,6 @@ form.addEventListener("submit", async (event) => {
     resetResult();
     return;
   }
-  if (isYouTubeUrl(finalUrl)) {
-    setStatus("YouTube tạm thời đã tắt trên máy chủ này.", true);
-    resetResult();
-    return;
-  }
   input.value = finalUrl;
 
   submitBtn.disabled = true;
@@ -873,5 +868,7 @@ document.querySelectorAll("[data-nav]").forEach((link) => {
     link.classList.add("is-active");
   }
 });
+
+
 
 

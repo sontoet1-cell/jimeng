@@ -41,7 +41,7 @@ try {
   // Ignore temp-dir initialization errors.
 }
 
-const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || "https://cogihot.vn,https://www.cogihot.vn,http://localhost:10000,http://127.0.0.1:10000")
+const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || "https://cogihot.vn,https://www.cogihot.vn,http://localhost:3000,http://127.0.0.1:3000")
   .split(",")
   .map((value) => String(value || "").trim())
   .filter(Boolean);
@@ -526,12 +526,17 @@ function detectPlatform(value) {
 
 function isSupportedUrl(value) {
   const platform = detectPlatform(value);
-  return platform !== "unknown" && platform !== "youtube";
+  return platform !== "unknown";
 }
 
 function isLikelyDirectFacebookVideoUrl(value) {
   const raw = String(value || "");
   return /facebook\.com\/(?:watch\/?\?v=|reel\/|videos\/)/i.test(raw) || /fb\.watch\//i.test(raw);
+}
+
+function isFacebookShareLink(value) {
+  const raw = String(value || "");
+  return /facebook\.com\/share\/(?:r|v)\//i.test(raw);
 }
 
 function isFacebookHost(host) {
@@ -2623,19 +2628,33 @@ async function resolveFacebookVideo(url) {
       }
     }
 
-    const isShareLink = /\/share\/r\//i.test(redirect.location) || /\/share\/v\//i.test(redirect.location);
+    const isShareLink = isFacebookShareLink(url) || isFacebookShareLink(redirect.location);
     if (isShareLink) {
-      try {
-        const shareHtml = await fetchText(redirect.location);
-        const canonical = extractCanonicalFacebookVideoUrl(shareHtml);
-        if (canonical) {
+      const shareProbeCandidates = [...new Set([url, redirect.location].filter(Boolean))];
+      for (const shareProbeUrl of shareProbeCandidates) {
+        try {
+          const shareHtml = await fetchText(shareProbeUrl);
+          const canonical = extractCanonicalFacebookVideoUrl(shareHtml);
+          if (!canonical) continue;
+
           const extraProbes = buildProbeUrls(canonical);
           for (const probe of extraProbes) {
             if (!probes.includes(probe)) probes.push(probe);
           }
+
+          try {
+            const ytdlpCanonical = await resolveViaYtDlp(canonical, "facebook");
+            if (ytdlpCanonical?.qualities?.length) {
+              const finalResult = { ...ytdlpCanonical, resolver: "yt_dlp_share_canonical" };
+              putCachedResolve(url, finalResult);
+              return finalResult;
+            }
+          } catch {
+            // Fall through to HTML probes.
+          }
+        } catch {
+          // Ignore share parse errors and continue with default probes.
         }
-      } catch {
-        // Ignore share parse errors and continue with default probes.
       }
     }
 
@@ -2695,10 +2714,6 @@ async function resolveVideoByPlatform(url) {
 
   if (platform === "unknown") {
     throw createHttpError(400, "Link khong thuoc nen tang duoc ho tro.");
-  }
-
-  if (platform === "youtube") {
-    throw createHttpError(503, "YouTube tam thoi da tat tren may chu nay.");
   }
 
   if (platform === "facebook") {
@@ -3775,6 +3790,8 @@ server.listen(PORT, () => {
   console.log(`[boot] tikwm=${TIKWM_API_BASE}`);
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
+
 
 
 
